@@ -4,12 +4,19 @@
 -- for column, so PowerSync can sync them without any reshaping.
 --
 -- Rules enforced here, not in the app:
---   * You see an account only if you are a member of it.
+--   * You see an account only if you are an active member of it.
 --   * Owners and editors write entries; viewers only read.
 --   * Every insert, update and soft delete of an entry is logged with the
 --     values before and after, by a trigger nobody can bypass.
---   * Accounts are shared by phone number. An invite to a number that has
---     no user yet waits, and activates when someone signs in with it.
+--   * People are identified by their mobile number when sharing. An owner
+--     invites a number with a role; the person who signs in with that
+--     number sees the invitation and must accept it before seeing the
+--     account. Declined invites stay declined.
+--
+-- Keys: every table uses a UUID primary key. The mobile number is the
+-- unique identity for sharing (profiles.phone, and one invite per number
+-- per account), but not the primary key, because numbers change hands and
+-- get recycled; a UUID keeps a person's history intact when that happens.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -18,7 +25,8 @@ create extension if not exists pgcrypto with schema extensions;
 create table public.profiles (
   id           uuid primary key references auth.users (id) on delete cascade,
   display_name text not null default '',
-  phone        text unique,                 -- E.164, e.g. +923001234567
+  phone        text unique                  -- E.164, e.g. +923001234567
+               check (phone ~ '^\+[1-9][0-9]{7,14}$'),
   phone_hash   text unique,                 -- sha256(phone), used for contact matching
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
@@ -71,12 +79,14 @@ create table public.accounts (
 create table public.account_members (
   id           uuid primary key default gen_random_uuid(),
   account_id   uuid not null references public.accounts (id) on delete cascade,
-  user_id      uuid references auth.users (id) on delete cascade,  -- null while pending
-  phone        text not null default '',
+  user_id      uuid references auth.users (id) on delete cascade,  -- set on accept
+  phone        text not null default '',   -- E.164; who the invite is for
   display_name text not null default '',
   email        text not null default '',
   role         text not null check (role in ('owner', 'editor', 'viewer')),
-  status       text not null default 'active' check (status in ('active', 'pending')),
+  status       text not null default 'pending'
+               check (status in ('pending', 'active', 'declined')),
+  responded_at timestamptz,
   invited_by   uuid references auth.users (id) default auth.uid(),
   joined_at    timestamptz not null default now(),
   unique (account_id, user_id),
@@ -101,23 +111,61 @@ create trigger accounts_add_owner
   after insert on public.accounts
   for each row execute function public.add_owner_member();
 
--- When someone's phone is verified, pending invites to that number become theirs.
-create or replace function public.claim_invites()
-returns trigger language plpgsql security definer set search_path = public as $$
+-- The signed-in person's verified mobile number.
+create or replace function public.my_phone()
+returns text language sql stable security definer set search_path = public as $$
+  select phone from public.profiles where id = auth.uid()
+$$;
+
+-- Invitations waiting for me, with enough to decide: which account, who
+-- shared it, and what I could do in it.
+create or replace function public.my_invitations()
+returns table (
+  member_id uuid, account_id uuid, account_name text,
+  role text, invited_by_name text, invited_at timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select m.id, a.id, a.name, m.role, coalesce(p.display_name, ''), m.joined_at
+  from public.account_members m
+  join public.accounts a on a.id = m.account_id and a.deleted_at is null
+  left join public.profiles p on p.id = m.invited_by
+  where m.status = 'pending' and m.phone = public.my_phone()
+  order by m.joined_at desc
+$$;
+
+-- Accepting makes me an active member: from then on the account, its
+-- entries and its full change history sync to my devices.
+create or replace function public.accept_invitation(p_member uuid)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  v_account uuid;
 begin
-  if new.phone is not null then
-    update public.account_members m
-       set user_id = new.id,
-           status = 'active',
-           display_name = case when m.display_name = '' then new.display_name else m.display_name end
-     where m.status = 'pending' and m.phone = new.phone;
+  update public.account_members m
+     set user_id = auth.uid(),
+         status = 'active',
+         responded_at = now(),
+         display_name = coalesce(
+           nullif((select display_name from public.profiles where id = auth.uid()), ''),
+           m.display_name)
+   where m.id = p_member and m.status = 'pending' and m.phone = public.my_phone()
+  returning m.account_id into v_account;
+  if v_account is null then
+    raise exception 'invitation not found';
   end if;
-  return new;
+  return v_account;
 end $$;
 
-create trigger profiles_claim_invites
-  after insert or update of phone on public.profiles
-  for each row execute function public.claim_invites();
+create or replace function public.decline_invitation(p_member uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.account_members
+     set status = 'declined', responded_at = now()
+   where id = p_member and status = 'pending' and phone = public.my_phone();
+end $$;
+
+grant execute on function public.my_invitations() to authenticated;
+grant execute on function public.accept_invitation(uuid) to authenticated;
+grant execute on function public.decline_invitation(uuid) to authenticated;
 
 -- ------------------------------------------------------------------- entries
 
@@ -248,8 +296,12 @@ create policy "owner changes the account" on public.accounts
 
 create policy "members see each other" on public.account_members
   for select using (public.account_role(account_id) is not null);
-create policy "owner invites" on public.account_members
-  for insert with check (public.account_role(account_id) = 'owner' and role <> 'owner');
+create policy "owner invites by number" on public.account_members
+  for insert with check (
+    public.account_role(account_id) = 'owner'
+    and role <> 'owner' and status = 'pending' and user_id is null
+    and phone ~ '^\+[1-9][0-9]{7,14}$'
+  );
 create policy "owner changes roles" on public.account_members
   for update using (public.account_role(account_id) = 'owner' and role <> 'owner');
 create policy "owner removes, members leave" on public.account_members

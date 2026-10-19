@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/routing/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../state/analytics.dart';
 import '../../../state/ledger_controller.dart';
 import '../../accounts/sharing_page.dart';
 import '../../reports/charts.dart';
-import '../../reports/insights_page.dart';
 import '../../widgets/common.dart';
 
 /// The right-hand panel on wide screens: where the open account stands.
@@ -104,9 +105,7 @@ class SummaryPanel extends StatelessWidget {
           SectionCard(
             title: 'Last 6 months',
             trailing: TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const InsightsPage()),
-              ),
+              onPressed: () => context.go(Routes.insights),
               child: const Text('Insights'),
             ),
             child: InOutBarChart(buckets: months, height: 170),

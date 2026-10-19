@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
@@ -93,7 +95,7 @@ class AccountSummaryPage extends StatelessWidget {
                                 child: InkWell(
                                   onTap: () {
                                     ledger.selectAccount(a);
-                                    Navigator.of(context).popUntil((r) => r.isFirst);
+                                    context.go(Routes.home);
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),

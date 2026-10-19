@@ -111,9 +111,10 @@ class _SharingPageState extends State<SharingPage> {
                       Expanded(
                         child: Text(
                           'Cash Flow works fully offline. Invites are saved on this '
-                          'device and sent once cloud sync is switched on. After '
-                          'that, every entry syncs in the background and people '
-                          'you share with see each change, including the old value.',
+                          'device and sent once cloud sync is switched on. The '
+                          'person signs in with that mobile number, accepts the '
+                          'invitation, and from then on sees every entry and each '
+                          'change, including the old value.',
                           style: t.bodySmall?.copyWith(color: scheme.onSurface),
                         ),
                       ),
@@ -193,7 +194,8 @@ class _MemberTile extends StatelessWidget {
       subtitle: Text(
         [
           if (member.phone.isNotEmpty && member.displayName.isNotEmpty) member.phone,
-          if (member.isPending) 'Pending, waiting for sync',
+          if (member.isPending) 'Invited, waiting for them to accept',
+          if (member.status == MemberStatus.declined) 'Declined',
         ].join('  ·  ').ifEmpty(member.role.label),
         style: t.bodySmall,
       ),

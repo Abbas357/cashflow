@@ -226,9 +226,10 @@ class _ContactPickerState extends State<_ContactPicker> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'This device has no contact book, so type the phone number of '
-                  'the person you want to share with. On a phone you can pick '
-                  'straight from your contacts.',
+                  'This device has no contact book, so type the mobile number of '
+                  'the person you want to share with. They sign in with that number '
+                  'and accept the invitation. On a phone you can pick straight '
+                  'from your contacts.',
                   style: t.bodySmall,
                 ),
               ),

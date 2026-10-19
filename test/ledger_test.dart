@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:cash_flow/core/utils/calculator.dart';
 import 'package:cash_flow/core/utils/formatters.dart';
 import 'package:cash_flow/data/db/app_database.dart';
 import 'package:cash_flow/data/models/models.dart';
 import 'package:cash_flow/data/repositories/ledger_repository.dart';
+import 'package:cash_flow/services/pdf_report.dart';
 import 'package:cash_flow/state/analytics.dart';
 import 'package:cash_flow/state/period.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -209,5 +212,17 @@ void main() {
     final b = Analytics.lastMonths(list, 2, (d) => '${d.month}', now: DateTime(2026, 10, 19));
     expect(b.map((x) => x.closing), [700, 500]);
     expect(b.last.cashOut, 200);
+  });
+
+  test('PDF report builds with the app icon in its header', () async {
+    final logo = File('assets/brand/app_icon.png').readAsBytesSync();
+    final pdf = await PdfReport.build(
+      title: 'Home',
+      periodLabel: 'October 2026',
+      profile: ReportProfile(name: 'Abbas', logo: logo),
+      sections: const [ReportSection('Home', [])],
+    );
+    expect(String.fromCharCodes(pdf.take(5)), '%PDF-');
+    expect(pdf.length, greaterThan(logo.length ~/ 4));
   });
 }

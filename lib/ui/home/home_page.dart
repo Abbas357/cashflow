@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/models.dart';
 import '../../state/ledger_controller.dart';
 import '../../state/settings_controller.dart';
-import '../backup/backup_page.dart';
-import '../entry/entry_form_page.dart';
 import '../navigation/app_menu.dart';
 import '../reports/report_actions.dart';
 import '../settings/profile_page.dart';
@@ -21,28 +21,25 @@ import 'widgets/summary_panel.dart';
 /// The main screen: one account's entries, newest first.
 ///
 /// Phone: drawer menu, list, big Cash In / Cash Out buttons at the bottom.
-/// Desktop: the menu sits on the left and, on wide screens, a summary panel
-/// on the right.
+/// Desktop: the shell's sidebar sits on the left and, when there is room,
+/// a summary panel on the right.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // The menu itself lives in AppShell: a sidebar on desktop and web, a
+    // drawer (opened from here) on phones.
     return LayoutBuilder(
       builder: (context, box) {
-        final desktop = box.maxWidth >= Breakpoints.desktop;
-        final wide = box.maxWidth >= Breakpoints.wide;
-        final hairline = Theme.of(context).dividerTheme.color;
-        if (!desktop) return const _Ledger(showMenuButton: true);
+        final phone = MediaQuery.sizeOf(context).width < Breakpoints.desktop;
+        if (phone) return const _Ledger(showMenuButton: true);
+        if (box.maxWidth < Breakpoints.wide - 300) return const _Ledger(showMenuButton: false);
         return Row(
           children: [
-            const SizedBox(width: 288, child: AppMenu(permanent: true)),
-            VerticalDivider(width: 1, color: hairline),
             const Expanded(child: _Ledger(showMenuButton: false)),
-            if (wide) ...[
-              VerticalDivider(width: 1, color: hairline),
-              const SizedBox(width: 360, child: SummaryPanel()),
-            ],
+            VerticalDivider(width: 1, color: Theme.of(context).dividerTheme.color),
+            const SizedBox(width: 360, child: SummaryPanel()),
           ],
         );
       },
@@ -60,8 +57,17 @@ class _Ledger extends StatefulWidget {
 }
 
 class _LedgerState extends State<_Ledger> {
-  bool _searching = false;
-  final _search = TextEditingController();
+  late bool _searching;
+  late final TextEditingController _search;
+
+  @override
+  void initState() {
+    super.initState();
+    // A search restored from the address shows its box straight away.
+    final restored = context.read<LedgerController>().search;
+    _searching = restored.isNotEmpty;
+    _search = TextEditingController(text: restored);
+  }
 
   @override
   void dispose() {
@@ -75,13 +81,14 @@ class _LedgerState extends State<_Ledger> {
     setState(() => _searching = false);
   }
 
-  Future<void> _newEntry(EntryType type) async {
+  void _newEntry(EntryType type) {
     final ledger = context.read<LedgerController>();
     if (!ledger.canEdit) {
       toast(context, 'You can only view this account.');
       return;
     }
-    await openAdaptive(context, EntryFormPage(type: type), height: 640);
+    // A real address (/cash-in, /cash-out), so a refresh reopens the form.
+    context.go(Routes.withQuery(Routes.newEntry(type, ledger.current!.id), ledger.viewQuery));
   }
 
   Future<void> _pickRange(LedgerController ledger) async {
@@ -255,9 +262,7 @@ class _MoreMenu extends StatelessWidget {
           case _MenuAction.print:
             ReportActions.printAccount(context);
           case _MenuAction.backup:
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const BackupPage()),
-            );
+            context.go(Routes.backup);
           case _MenuAction.profile:
             openAdaptive(context, const ProfilePage(), height: 560);
         }

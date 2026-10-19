@@ -1,13 +1,18 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/calculator.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/models.dart';
 import '../../state/ledger_controller.dart';
+import '../../state/settings_controller.dart';
 import '../widgets/common.dart';
 import 'attachments.dart';
 import 'calculator_sheet.dart';
@@ -17,7 +22,17 @@ class EntryFormPage extends StatefulWidget {
   final EntryType type;
   final Entry? entry;
 
-  const EntryFormPage({super.key, this.type = EntryType.cashIn, this.entry});
+  /// Opened from its own address (/cash-in, /cash-out). The form then keeps
+  /// its address in step with Cash In / Cash Out, and keeps a draft so a
+  /// browser refresh brings back what was typed.
+  final bool routed;
+
+  const EntryFormPage({
+    super.key,
+    this.type = EntryType.cashIn,
+    this.entry,
+    this.routed = false,
+  });
 
   @override
   State<EntryFormPage> createState() => _EntryFormPageState();
@@ -38,7 +53,12 @@ class _EntryFormPageState extends State<EntryFormPage> {
   bool _saving = false;
   int _savedCount = 0;
 
+  late final SettingsController _settings = context.read<SettingsController>();
+
   bool get _editing => widget.entry != null;
+
+  /// Drafts older than this are stale and not restored.
+  static const _draftLife = Duration(hours: 2);
 
   static String _plain(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
@@ -47,6 +67,62 @@ class _EntryFormPageState extends State<EntryFormPage> {
   void initState() {
     super.initState();
     _loadSuggestions();
+    if (widget.routed) {
+      _restoreDraft();
+      _amount.addListener(_saveDraft);
+      _note.addListener(_saveDraft);
+    }
+  }
+
+  void _restoreDraft() {
+    final raw = _settings.entryDraft;
+    if (raw == null) return;
+    try {
+      final d = jsonDecode(raw) as Map<String, dynamic>;
+      final saved = DateTime.parse(d['saved'] as String);
+      final account = context.read<LedgerController>().current?.id;
+      if (d['account'] != account || DateTime.now().difference(saved) > _draftLife) {
+        _settings.setEntryDraft(null);
+        return;
+      }
+      _type = EntryType.parse(d['type'] as String);
+      _amount.text = d['amount'] as String? ?? '';
+      _note.text = d['note'] as String? ?? '';
+      _date = DateTime.tryParse(d['at'] as String? ?? '') ?? _date;
+    } catch (_) {
+      _settings.setEntryDraft(null);
+    }
+  }
+
+  void _saveDraft() {
+    if (!widget.routed) return;
+    if (_amount.text.isEmpty && _note.text.isEmpty) {
+      _settings.setEntryDraft(null);
+      return;
+    }
+    _settings.setEntryDraft(jsonEncode({
+      'account': context.read<LedgerController>().current?.id,
+      'type': _type.code,
+      'amount': _amount.text,
+      'note': _note.text,
+      'at': _date.toIso8601String(),
+      'saved': DateTime.now().toIso8601String(),
+    }));
+  }
+
+  void _setType(EntryType type) {
+    if (type == _type) return;
+    setState(() => _type = type);
+    _saveDraft();
+    if (widget.routed) {
+      // Same popup, new address; neglect() replaces it rather than adding
+      // a history step.
+      final ledger = context.read<LedgerController>();
+      Router.neglect(
+        context,
+        () => context.go(Routes.withQuery(Routes.newEntry(type, ledger.current!.id), ledger.viewQuery)),
+      );
+    }
   }
 
   Future<void> _loadSuggestions() async {
@@ -59,6 +135,9 @@ class _EntryFormPageState extends State<EntryFormPage> {
 
   @override
   void dispose() {
+    // Closed on purpose (saved, Back, or the browser's Back button). A
+    // refresh never gets here, so its draft survives.
+    if (widget.routed) _settings.setEntryDraft(null);
     _amount.dispose();
     _note.dispose();
     _amountFocus.dispose();
@@ -86,6 +165,7 @@ class _EntryFormPageState extends State<EntryFormPage> {
     );
     if (d != null) {
       setState(() => _date = DateTime(d.year, d.month, d.day, _date.hour, _date.minute));
+      _saveDraft();
     }
   }
 
@@ -96,12 +176,16 @@ class _EntryFormPageState extends State<EntryFormPage> {
     );
     if (tm != null) {
       setState(() => _date = DateTime(_date.year, _date.month, _date.day, tm.hour, tm.minute));
+      _saveDraft();
     }
   }
 
-  void _shiftDay(int by) => setState(
-    () => _date = DateTime(_date.year, _date.month, _date.day + by, _date.hour, _date.minute),
-  );
+  void _shiftDay(int by) {
+    setState(
+      () => _date = DateTime(_date.year, _date.month, _date.day + by, _date.hour, _date.minute),
+    );
+    _saveDraft();
+  }
 
   Future<void> _attach() async {
     ImageSource? source = ImageSource.gallery;
@@ -251,7 +335,7 @@ class _EntryFormPageState extends State<EntryFormPage> {
                   ChoiceChip(
                     label: Text(type.label),
                     selected: _type == type,
-                    onSelected: (_) => setState(() => _type = type),
+                    onSelected: (_) => _setType(type),
                     selectedColor: type.isIn ? c.inButton : c.outButton,
                     side: BorderSide(
                       color: _type == type ? Colors.transparent : Theme.of(context).colorScheme.outline,

@@ -83,10 +83,11 @@ class _ReportsPageState extends State<ReportsPage> {
         await ReportActions.saveCsv(context, PdfReport.csv(sections), 'cash_flow_${_period.label}');
         return;
       }
+      final profile = await ReportActions.profileOf(context);
       final bytes = await PdfReport.build(
         title: sections.length == 1 ? sections.first.accountName : 'All accounts report',
         periodLabel: _period.label,
-        profile: ReportActions.profileOf(context),
+        profile: profile,
         sections: sections,
         includeSummary: true,
       );

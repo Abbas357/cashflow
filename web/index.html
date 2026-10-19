@@ -24,13 +24,40 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Cash Flow">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>Cash Flow</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Loading screen: icon and a progress bar, shown while the app starts
+       and faded out on its first frame. */
+    :root { --bg: #F4F6F5; --track: #DCE5E0; --fill: #006B3C; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0F1412; --track: #26302B; --fill: #3DCB86; }
+    }
+    html, body { margin: 0; height: 100%; background: var(--bg); }
+    #splash {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+      transition: opacity 250ms ease;
+    }
+    #splash.done { opacity: 0; }
+    #splash img { width: 96px; height: 96px; }
+    #splash .track {
+      width: 160px; height: 4px; border-radius: 2px; overflow: hidden;
+      background: var(--track);
+    }
+    #splash .fill {
+      width: 0; height: 100%; border-radius: 2px; background: var(--fill);
+      transition: width 400ms ease-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash, #splash .fill { transition: none; }
+    }
+  </style>
 </head>
 <body>
   <!--
@@ -41,6 +68,42 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <div id="splash" role="progressbar" aria-label="Loading Cash Flow">
+    <img src="icons/Icon-192.png" alt="">
+    <div class="track"><div class="fill"></div></div>
+  </div>
+  <script>
+    // Progress for the loading bar. Stages set a floor; between stages the
+    // bar creeps towards the next one so it never looks stuck.
+    window.splashProgress = (() => {
+      const fill = document.querySelector('#splash .fill');
+      let shown = 0, target = 8, cap = 20;
+      const draw = () => { fill.style.width = shown + '%'; };
+      const tick = setInterval(() => {
+        if (shown < target) shown = target;
+        else if (shown < cap) shown += (cap - shown) * 0.08;
+        draw();
+      }, 200);
+      draw();
+      return (floor, nextCap) => {
+        target = Math.max(target, floor);
+        cap = Math.max(nextCap ?? floor, target);
+        if (floor >= 100) {
+          clearInterval(tick);
+          shown = 100;
+          draw();
+        }
+      };
+    })();
+    window.addEventListener('flutter-first-frame', () => {
+      window.splashProgress(100);
+      const splash = document.getElementById('splash');
+      setTimeout(() => {
+        splash.classList.add('done');
+        setTimeout(() => splash.remove(), 300);
+      }, 150);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

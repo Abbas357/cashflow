@@ -49,7 +49,7 @@ const _topics = [
   _Topic(Icons.group_outlined, 'Sharing', [
     'Open an account in Accounts and choose Share.',
     'Pick people from your contacts, or type a number, and choose Can edit or View only.',
-    'Invites are kept on this device and sent once cloud sync is turned on. The person signs in with that phone number to see the account.',
+    'Invites are kept on this device and sent once cloud sync is turned on. The person signs in with that mobile number and accepts the invitation; then they see the account and every change.',
     'Viewers see every entry, total and change, but cannot change anything.',
   ]),
   _Topic(Icons.cloud_sync_outlined, 'Backup', [

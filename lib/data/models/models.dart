@@ -285,17 +285,23 @@ class EntryChange {
 }
 
 /// Where an invite stands. Pending invites wait on this device until
-/// cloud sync is switched on, then go out to the person's phone number.
+/// cloud sync is switched on, then go to whoever signs in with that mobile
+/// number. They see the invitation and accept or decline it; only after
+/// accepting do they see the account and its change history.
 enum MemberStatus {
   active,
-  pending;
+  pending,
+  declined;
 
   static MemberStatus parse(String? v) =>
       MemberStatus.values.firstWhere((s) => s.name == v, orElse: () => active);
 }
 
 /// A person who can see an account: the owner, or someone it was shared
-/// with from the phone's contacts. People are matched by phone number.
+/// with from the phone's contacts.
+///
+/// The mobile number is how people are identified and matched when
+/// sharing. The row's id stays a UUID, since numbers change hands.
 class AccountMember {
   final String id;
   final String accountId;

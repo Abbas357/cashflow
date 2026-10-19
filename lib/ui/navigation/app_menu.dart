@@ -1,157 +1,263 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/settings_controller.dart';
-import '../accounts/accounts_page.dart';
-import '../activity/activity_page.dart';
-import '../backup/backup_page.dart';
-import '../help/help_page.dart';
-import '../help/how_to_use_page.dart';
-import '../reports/account_summary_page.dart';
-import '../reports/all_transactions_page.dart';
-import '../reports/insights_page.dart';
-import '../reports/period_summary_page.dart';
-import '../reports/reports_page.dart';
-import '../settings/settings_page.dart';
-import '../transfer/transfer_page.dart';
+import 'menu_items.dart';
+import 'menu_search.dart';
 
-class _Item {
+/// The app icon, as shown in the menu, Help and anywhere else the brand
+/// appears.
+class BrandMark extends StatelessWidget {
+  static const asset = 'assets/brand/app_icon.png';
+
+  final double size;
+  const BrandMark({super.key, this.size = 30});
+
+  @override
+  Widget build(BuildContext context) => Image.asset(
+    asset,
+    width: size,
+    height: size,
+    filterQuality: FilterQuality.medium,
+    semanticLabel: 'Cash Flow',
+  );
+}
+
+/// One quiet menu row: icon and label, soft hover, filled when current.
+/// In [collapsed] form it is an icon with a tooltip.
+class MenuRow extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Widget Function() page;
   final String? badge;
-  const _Item(this.icon, this.label, this.page, {this.badge});
-}
+  final bool selected;
+  final bool collapsed;
+  final VoidCallback onTap;
 
-class _Section {
-  final String? title;
-  final List<_Item> items;
-  const _Section(this.title, this.items);
-}
-
-final _sections = <_Section>[
-  _Section(null, [
-    _Item(Icons.menu_book_outlined, 'How to use the app', () => const HowToUsePage()),
-  ]),
-  _Section('Reports', [
-    _Item(Icons.insights_outlined, 'Insights', () => const InsightsPage(), badge: 'New'),
-    _Item(Icons.calendar_view_month_outlined, 'Summary', () => const PeriodSummaryPage()),
-    _Item(Icons.account_balance_outlined, 'Account summary', () => const AccountSummaryPage()),
-    _Item(Icons.receipt_long_outlined, 'Transactions: all accounts', () => const AllTransactionsPage()),
-    _Item(Icons.picture_as_pdf_outlined, 'Reports: all accounts', () => const ReportsPage()),
-    _Item(Icons.history_rounded, 'Activity log', () => const ActivityPage()),
-  ]),
-  _Section('Manage', [
-    _Item(Icons.folder_shared_outlined, 'Accounts', () => const AccountsPage()),
-    _Item(Icons.swap_horiz_rounded, 'Transfer', () => const TransferPage()),
-    _Item(Icons.cloud_sync_outlined, 'Backup and restore', () => const BackupPage()),
-  ]),
-  _Section('App', [
-    _Item(Icons.settings_outlined, 'Settings', () => const SettingsPage()),
-    _Item(Icons.help_outline_rounded, 'Help and about', () => const HelpPage()),
-  ]),
-];
-
-/// The app's main menu. A modal drawer on phones, a fixed side panel on
-/// desktop.
-class AppMenu extends StatelessWidget {
-  final bool permanent;
-
-  const AppMenu({super.key, this.permanent = false});
-
-  void _open(BuildContext context, _Item item) {
-    if (!permanent) Navigator.of(context).pop();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.page()));
-  }
+  const MenuRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.badge,
+    this.selected = false,
+    this.collapsed = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final settings = context.watch<SettingsController>();
+    final fg = selected ? scheme.onSurface : scheme.onSurface.withValues(alpha: 0.82);
+    final bg = selected ? scheme.onSurface.withValues(alpha: 0.07) : Colors.transparent;
+    final hover = scheme.onSurface.withValues(alpha: 0.05);
 
-    final list = ListView(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppTheme.brandColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    final body = Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        hoverColor: hover,
+        onTap: onTap,
+        child: SizedBox(
+          height: 38,
+          width: collapsed ? 40 : null,
+          child: collapsed
+              ? Icon(icon, size: 20, color: fg)
+              : Row(
                   children: [
-                    Text('Cash Flow', style: t.titleLarge),
-                    Text(
-                      settings.name.isEmpty
-                          ? 'Offline, saved on this device'
-                          : settings.name,
-                      style: t.bodySmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        for (final section in _sections) ...[
-          if (section.title != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-              child: Text(
-                section.title!.toUpperCase(),
-                style: t.labelSmall?.copyWith(letterSpacing: 1.1),
-              ),
-            ),
-          for (final item in section.items)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
-              child: ListTile(
-                dense: true,
-                visualDensity: const VisualDensity(vertical: -1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                leading: Icon(item.icon, size: 22),
-                title: Text(item.label, style: t.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
-                trailing: item.badge == null
-                    ? null
-                    : Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: scheme.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          item.badge!,
-                          style: t.labelSmall?.copyWith(color: scheme.primary),
+                    const SizedBox(width: 10),
+                    Icon(icon, size: 19, color: fg),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.bodyMedium?.copyWith(
+                          color: fg,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
-                onTap: () => _open(context, item),
-              ),
+                    ),
+                    if (badge != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(badge!, style: t.labelSmall?.copyWith(color: scheme.primary)),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: collapsed
+          ? Tooltip(message: label, preferBelow: false, waitDuration: const Duration(milliseconds: 300), child: body)
+          : body,
+    );
+  }
+}
+
+/// The sections and rows. [onOpen] runs before navigating (to close a
+/// drawer, for example).
+class MenuList extends StatelessWidget {
+  final String location;
+  final bool collapsed;
+  final VoidCallback? onOpen;
+
+  const MenuList({super.key, required this.location, this.collapsed = false, this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: collapsed ? CrossAxisAlignment.center : CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, section) in menuSections.indexed) ...[
+          if (section.title != null)
+            collapsed
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: SizedBox(width: 24, child: Divider(height: 1, color: context.cash.hairline)),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 18, 10, 6),
+                    child: Text(section.title!, style: t.labelMedium),
+                  )
+          else if (i > 0)
+            const SizedBox(height: 12),
+          for (final item in section.items)
+            MenuRow(
+              icon: item.icon,
+              label: item.label,
+              badge: item.badge,
+              collapsed: collapsed,
+              selected: item.isCurrent(location),
+              onTap: () {
+                onOpen?.call();
+                context.go(item.path);
+              },
             ),
         ],
       ],
     );
+  }
+}
 
-    if (permanent) {
-      return Material(color: scheme.surface, child: SafeArea(child: list));
+/// Your name at the foot of the menu; opens Settings.
+class ProfileFooter extends StatelessWidget {
+  final bool collapsed;
+  final VoidCallback? onOpen;
+
+  const ProfileFooter({super.key, this.collapsed = false, this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<SettingsController>();
+    final t = Theme.of(context).textTheme;
+    final name = s.name.isEmpty ? 'You' : s.name;
+    final avatar = CircleAvatar(
+      radius: 15,
+      backgroundColor: AppTheme.brandColor,
+      foregroundColor: Colors.white,
+      child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+    );
+    void open() {
+      onOpen?.call();
+      context.go(Routes.settings);
     }
-    return Drawer(width: 304, child: SafeArea(child: list));
+
+    if (collapsed) {
+      return Tooltip(
+        message: '$name: Settings',
+        child: IconButton(onPressed: open, icon: avatar),
+      );
+    }
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: open,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            avatar,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: t.bodyMedium?.copyWith(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                  Text('Offline, saved on this device', style: t.labelSmall, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The menu on phones (a drawer) and on Android or iOS tablets (fixed at
+/// the side). Desktop and web use [AppSidebar] instead.
+class AppMenu extends StatelessWidget {
+  final bool permanent;
+
+  const AppMenu({super.key, this.permanent = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final location = GoRouterState.of(context).uri.path;
+    void close() {
+      if (!permanent) Navigator.of(context).pop();
+    }
+
+    final body = SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            child: Row(
+              children: [
+                const BrandMark(),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Cash Flow', style: t.titleLarge)),
+                IconButton(
+                  tooltip: 'Search menu',
+                  icon: const Icon(Icons.search_rounded),
+                  onPressed: () => showMenuSearch(context),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: MenuList(location: location, onOpen: close),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: ProfileFooter(onOpen: close),
+          ),
+        ],
+      ),
+    );
+
+    if (permanent) return Material(color: scheme.surface, child: body);
+    return Drawer(width: 304, child: body);
   }
 }

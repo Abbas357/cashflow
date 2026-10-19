@@ -265,6 +265,63 @@ class LedgerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ------------------------------------------------------- the address
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// The query parameters [viewQuery] writes and [applyQuery] reads.
+  static const viewKeys = {'period', 'date', 'from', 'to', 'q', 'sort', 'order'};
+
+  /// How the account is being looked at, as address query parameters.
+  /// The account itself is in the path (`/account/<uuid>`). Defaults are
+  /// left out, so a plain view keeps a short address.
+  Map<String, String> get viewQuery {
+    final r = _range;
+    return {
+      if (_kind != PeriodKind.all) 'period': _kind.name,
+      if (_kind != PeriodKind.all && _kind != PeriodKind.custom) 'date': _ymd(_anchor),
+      if (_kind == PeriodKind.custom && r != null) ...{
+        'from': _ymd(r.start),
+        'to': _ymd(r.end),
+      },
+      if (search.trim().isNotEmpty) 'q': search.trim(),
+      if (sortField == SortField.notes) 'sort': 'notes',
+      // Dates default to newest first, notes to A to Z.
+      if (ascending != (sortField == SortField.notes)) 'order': ascending ? 'asc' : 'desc',
+    };
+  }
+
+  /// Restores a view from address query parameters, such as after a
+  /// browser refresh. Anything unknown or malformed is ignored. An
+  /// `account` parameter (old-style links) opens that account.
+  Future<void> applyQuery(Map<String, String> q) async {
+    final account = accounts.where((a) => a.id == q['account']).firstOrNull;
+    if (account != null && account.id != current?.id) await selectAccount(account);
+
+    final kind = PeriodKind.values.where((k) => k.name == q['period']).firstOrNull;
+    final date = DateTime.tryParse(q['date'] ?? '');
+    final from = DateTime.tryParse(q['from'] ?? '');
+    final to = DateTime.tryParse(q['to'] ?? '');
+    if (kind == PeriodKind.custom && from != null && to != null && !to.isBefore(from)) {
+      _kind = PeriodKind.custom;
+      _range = DateTimeRange(start: from, end: to);
+    } else if (kind != null && kind != PeriodKind.custom) {
+      _kind = kind;
+      _range = null;
+      _anchor = date ?? DateTime.now();
+    }
+
+    search = q['q'] ?? '';
+    sortField = q['sort'] == 'notes' ? SortField.notes : SortField.date;
+    ascending = switch (q['order']) {
+      'asc' => true,
+      'desc' => false,
+      _ => sortField == SortField.notes,
+    };
+    notifyListeners();
+  }
+
   /// All entries of the open account, oldest first.
   List<Entry> get allEntries => _entries;
 

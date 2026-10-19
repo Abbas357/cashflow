@@ -100,4 +100,25 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> setLastAccount(String id) => _prefs.setString(_kLastAccount, id);
+
+  static const _kSidebarWidth = 'sidebar_width';
+  static const _kSidebarCollapsed = 'sidebar_collapsed';
+
+  /// The desktop sidebar's width and folded state. Saved quietly (no
+  /// rebuild of the app) since the sidebar keeps its own copy while used.
+  double? get sidebarWidth => _prefs.getDouble(_kSidebarWidth);
+  bool get sidebarCollapsed => _prefs.getBool(_kSidebarCollapsed) ?? false;
+  Future<void> saveSidebar({required double width, required bool collapsed}) async {
+    await _prefs.setDouble(_kSidebarWidth, width);
+    await _prefs.setBool(_kSidebarCollapsed, collapsed);
+  }
+
+  static const _kEntryDraft = 'entry_draft';
+
+  /// The half-typed Cash In / Cash Out form, as JSON, so a browser refresh
+  /// does not lose it. Not a preference, so it does not notify listeners.
+  String? get entryDraft => _prefs.getString(_kEntryDraft);
+
+  Future<void> setEntryDraft(String? json) =>
+      json == null ? _prefs.remove(_kEntryDraft) : _prefs.setString(_kEntryDraft, json);
 }

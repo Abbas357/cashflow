@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/models.dart';
@@ -128,7 +130,7 @@ class _AccountsPageState extends State<AccountsPage> {
                           switch (v) {
                             case 'open':
                               ledger.selectAccount(a);
-                              Navigator.of(context).popUntil((r) => r.isFirst);
+                              context.go(Routes.home);
                             case 'share':
                               openAdaptive(context, SharingPage(account: a));
                             case 'rename':
@@ -151,7 +153,7 @@ class _AccountsPageState extends State<AccountsPage> {
                   ),
                   onTap: () {
                     ledger.selectAccount(a);
-                    Navigator.of(context).popUntil((r) => r.isFirst);
+                    context.go(Routes.home);
                   },
                 ),
               ),

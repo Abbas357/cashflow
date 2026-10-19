@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../core/theme/app_theme.dart';
+import '../../core/routing/app_router.dart';
+import '../navigation/app_menu.dart';
 import '../widgets/common.dart';
-import 'how_to_use_page.dart';
 
 const _faq = [
   (
@@ -21,7 +22,8 @@ const _faq = [
   ),
   (
     'Can two people use the same account?',
-    'Yes, once cloud sync is on. Share the account with their phone number and choose whether they can edit or only view.',
+    'Yes, once cloud sync is on. Share the account with their mobile number and choose whether they can edit or only view. '
+        'They accept the invitation, then see every entry and change.',
   ),
 ];
 
@@ -39,15 +41,7 @@ class HelpPage extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: AppTheme.brandColor,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 32),
-                ),
+                const BrandMark(size: 72),
                 const SizedBox(height: 12),
                 Text('Cash Flow', style: t.headlineSmall),
                 Text('Version 1.0.0', style: t.bodySmall),
@@ -61,9 +55,7 @@ class HelpPage extends StatelessWidget {
               leading: const Icon(Icons.menu_book_outlined),
               title: const Text('How to use the app'),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HowToUsePage()),
-              ),
+              onTap: () => context.push(Routes.howToUse),
             ),
           ),
           const SizedBox(height: 16),

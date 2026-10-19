@@ -42,7 +42,13 @@ edits, including the value an edit replaced.
 
 ## Sharing through contacts
 
-1. Each person signs in once with their phone number (Supabase phone OTP).
+**Identity.** The mobile number is how a person is identified and found
+when sharing. Each number belongs to one user (`profiles.phone` is
+unique) and an account can hold one invite per number. Every table still
+uses a UUID primary key: numbers change hands and get recycled, and a
+UUID keeps a person's history intact when that happens.
+
+1. Each person signs in once with their mobile number (Supabase phone OTP).
    A trigger copies the verified number into `profiles.phone` and stores
    `sha256(phone)` in `profiles.phone_hash`.
 2. In **Share account**, the owner picks people from the phone's contacts
@@ -50,12 +56,18 @@ edits, including the value an edit replaced.
 3. To show which contacts already use the app, the device sends **hashes**
    of its contacts' numbers to `match_contacts()`. Raw numbers never leave
    the phone.
-4. Each share is an `account_members` row with that phone number and role.
-   If the number already has a user, it is active at once. If not, it stays
-   `pending` until someone signs in with that number; then
-   `claim_invites()` activates it.
-5. RLS lets members read an account, its entries and its history. Only
-   owners and editors can write entries. Only the owner manages members.
+4. Each share is an `account_members` row with that number, the role, and
+   status `pending`. Nothing about the account is visible to the invitee
+   yet.
+5. The invited person signs in with that number and sees the invitation
+   (`my_invitations()`: account name, who shared it, the role). They
+   **accept** (`accept_invitation`) or **decline** (`decline_invitation`).
+6. On accept, the row becomes `active` with their user id. From then on
+   the account, its entries and the full change history sync to their
+   devices, and every later change arrives in the background.
+7. RLS lets active members read an account, its entries and its history.
+   Only owners and editors can write entries. Only the owner invites,
+   changes roles or removes people.
 
 ## History of changes
 
@@ -102,6 +114,8 @@ source. Local rows are replaced by the server's copies when they arrive.
 6. **Contacts.** Hash each normalised contact number with sha256, call
    `match_contacts`, and mark matching contacts in the picker. Pending
    invites already saved on the device upload with everything else.
+7. **Invitations screen.** List `my_invitations()` after sign-in (and
+   when a push notification arrives), with Accept and Decline.
 
 ## Conflicts
 

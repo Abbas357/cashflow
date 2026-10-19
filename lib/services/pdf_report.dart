@@ -7,12 +7,16 @@ import '../core/utils/formatters.dart';
 import '../data/models/models.dart';
 import '../state/ledger_controller.dart';
 
-/// Who the report is for, printed in its header.
+/// Who the report is for, printed in its header with the app icon.
 class ReportProfile {
   final String name;
   final String address;
   final String phone;
-  const ReportProfile({this.name = '', this.address = '', this.phone = ''});
+
+  /// PNG bytes of the app icon, shown at the top left.
+  final Uint8List? logo;
+
+  const ReportProfile({this.name = '', this.address = '', this.phone = '', this.logo});
 }
 
 /// One account's part of a report.
@@ -80,12 +84,18 @@ class PdfReport {
         pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            if (p.logo != null) ...[
+              pw.Image(pw.MemoryImage(p.logo!), width: 34, height: 34),
+              pw.SizedBox(width: 10),
+            ],
             pw.Expanded(
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  if (p.name.isNotEmpty)
-                    pw.Text(p.name, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(
+                    p.name.isEmpty ? 'Cash Flow' : p.name,
+                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                  ),
                   if (p.address.isNotEmpty)
                     pw.Text(p.address, style: const pw.TextStyle(fontSize: 9, color: _muted)),
                   if (p.phone.isNotEmpty)
