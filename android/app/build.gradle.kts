@@ -19,7 +19,7 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.cashflow.cash_flow"
+    namespace = "com.finance.cash_flow"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -34,7 +34,7 @@ android {
 
     defaultConfig {
         // Permanent once published on Google Play.
-        applicationId = "com.cashflow.cash_flow"
+        applicationId = "com.finance.cash_flow"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // From `version:` in pubspec.yaml (name+code, e.g. 1.0.0+1).
@@ -55,7 +55,7 @@ android {
     }
 
     buildTypes {
-        // A dev build is an app of its own (com.cashflow.cash_flow.dev, "Cash
+        // A dev build is an app of its own (com.finance.cash_flow.dev, "Cash
         // Flow Dev"), installed beside the released one rather than over it,
         // with its own data: the two are signed with different keys, so one
         // would otherwise have to remove the other.

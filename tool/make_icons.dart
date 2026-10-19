@@ -50,6 +50,22 @@ void main() {
       dstX: 100, dstY: 100);
   _save(mac, 'app_icon_macos.png');
 
+  // Android 12+ launch screen: the small icon and the empty progress bar,
+  // placed exactly where the app's startup screen (lib/boot.dart) draws
+  // them, so the system's launch screen and the app's look like one screen
+  // and the bar simply starts to fill. Android draws this image over a
+  // 288 dp square, centred and cropped to a rounded shape, so 1 dp = 4 px
+  // here (1152 px). It is painted on the launch screen's own colour, so the
+  // crop is invisible and edges blend cleanly. Light and dark versions.
+  _save(
+    _splash(icon, bg: ColorRgba8(0xF4, 0xF6, 0xF5, 255), track: ColorRgba8(0xDC, 0xE5, 0xE0, 255)),
+    '../../android/app/src/main/res/drawable-nodpi/splash_logo.png',
+  );
+  _save(
+    _splash(icon, bg: ColorRgba8(0x0F, 0x14, 0x12, 255), track: ColorRgba8(0x26, 0x30, 0x2B, 255)),
+    '../../android/app/src/main/res/drawable-night-nodpi/splash_logo.png',
+  );
+
   // Web files that flutter_launcher_icons does not cover.
   _write(copyResize(icon, width: 32, height: 32, interpolation: Interpolation.average), 'web/favicon.png');
   _write(copyResize(square, width: 180, height: 180, interpolation: Interpolation.cubic), 'web/icons/apple-touch-icon.png');
@@ -99,6 +115,34 @@ Image _shadow(Image im, Color color) {
     s.setPixelRgba(p.x, p.y, color.r, color.g, color.b, p.a * 0.28);
   }
   return gaussianBlur(s, radius: (im.width * 0.03).round());
+}
+
+/// The launch picture: a 96 dp icon, a 28 dp gap and a 140 x 4 dp bar,
+/// centred as one group on a 288 dp canvas (4 px per dp) of colour [bg].
+Image _splash(Image icon, {required Color bg, required Color track}) {
+  const dp = 4;
+  const canvas = 288 * dp;
+  const centre = canvas ~/ 2;
+  final out = Image(width: canvas, height: canvas, numChannels: 4)..clear(bg);
+  // The group is 128 dp tall, so the icon's centre is 16 dp above the
+  // canvas centre and the bar's centre 62 dp below it.
+  const iconSize = 96 * dp;
+  compositeImage(
+    out,
+    copyResize(icon, width: iconSize, height: iconSize, interpolation: Interpolation.cubic),
+    dstX: centre - iconSize ~/ 2,
+    dstY: centre - 16 * dp - iconSize ~/ 2,
+  );
+  fillRect(
+    out,
+    x1: centre - 70 * dp,
+    y1: centre + 60 * dp,
+    x2: centre + 70 * dp,
+    y2: centre + 64 * dp,
+    color: track,
+    radius: 2 * dp,
+  );
+  return out;
 }
 
 String _hex(Color c) =>

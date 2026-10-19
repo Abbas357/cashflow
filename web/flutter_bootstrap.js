@@ -9,7 +9,8 @@ _flutter.loader.load({
   onEntrypointLoaded: async (engineInitializer) => {
     progress(60, 82);
     const appRunner = await engineInitializer.initializeEngine();
-    progress(85, 97);
+    // Stops at 85%: the app's own loading screen continues from there.
+    progress(85, 85);
     await appRunner.runApp();
   },
 });

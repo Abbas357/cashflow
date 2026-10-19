@@ -32,8 +32,9 @@
   <title>Cash Flow</title>
   <link rel="manifest" href="manifest.json">
   <style>
-    /* Loading screen: icon and a progress bar, shown while the app starts
-       and faded out on its first frame. */
+    /* Loading screen: icon and a progress bar, shown while the app's code
+       loads. The app's own loading screen (lib/boot.dart) has the same
+       layout and carries the bar on from 85% when Flutter takes over. */
     :root { --bg: #F4F6F5; --track: #DCE5E0; --fill: #006B3C; }
     @media (prefers-color-scheme: dark) {
       :root { --bg: #0F1412; --track: #26302B; --fill: #3DCB86; }
@@ -47,7 +48,7 @@
     #splash.done { opacity: 0; }
     #splash img { width: 96px; height: 96px; }
     #splash .track {
-      width: 160px; height: 4px; border-radius: 2px; overflow: hidden;
+      width: 140px; height: 4px; border-radius: 2px; overflow: hidden;
       background: var(--track);
     }
     #splash .fill {
@@ -95,13 +96,11 @@
         }
       };
     })();
+    // Flutter's first frame is its own loading screen, drawn in the same
+    // place, so this one simply steps aside.
     window.addEventListener('flutter-first-frame', () => {
-      window.splashProgress(100);
-      const splash = document.getElementById('splash');
-      setTimeout(() => {
-        splash.classList.add('done');
-        setTimeout(() => splash.remove(), 300);
-      }, 150);
+      window.splashProgress(85);
+      document.getElementById('splash')?.remove();
     });
   </script>
   <script src="flutter_bootstrap.js" async></script>

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#B0EAC2</color>
+    <!-- The window behind the launch screen; matches the app canvas. -->
+    <color name="splash_background">#F4F6F5</color>
 </resources>

@@ -18,8 +18,8 @@ Run these from this folder, in any terminal.
 | `flutter run -d chrome` | Runs the web app in Chrome. |
 | `flutter test` | Runs the tests. |
 
-- The dev build installs as **Cash Flow Dev** (`com.cashflow.cash_flow.dev`)
-  and the production build as **Cash Flow** (`com.cashflow.cash_flow`). Both
+- The dev build installs as **Cash Flow Dev** (`com.finance.cash_flow.dev`)
+  and the production build as **Cash Flow** (`com.finance.cash_flow`). Both
   can sit on the phone together, each with its own data, so trying a change
   never touches your real books.
 - To install, copy the APK to the phone and open it (allow installs from
@@ -129,7 +129,8 @@ dart run tool/make_icons.dart
 ```
 
 The first run makes the platform variants (Android adaptive foreground, iOS
-square, macOS margin, web maskable); `flutter_launcher_icons` places them on
+square, macOS margin, web maskable, and the Android launch picture: the
+small icon with an empty progress bar, matching the app's startup screen); `flutter_launcher_icons` places them on
 every platform; the second run restores the web favicon and maskable icons
 that it overwrites.
 
