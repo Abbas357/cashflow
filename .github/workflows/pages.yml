@@ -33,7 +33,12 @@ jobs:
       - run: flutter pub get
 
       # Served from /cashflow/, not the site root.
-      - run: flutter build web --release --no-web-resources-cdn --base-href /cashflow/
+      - run: >-
+          flutter build web --release --no-web-resources-cdn --base-href /cashflow/
+          --dart-define=BUILD_ID=${{ github.sha }}
+
+      # A plain refresh then loads the new build (see the script).
+      - run: dart tool/web_cache_bust.dart ${{ github.sha }}
 
       # Pages has no rewrite rules. Unknown paths (a refresh on
       # /cashflow/insights) get 404.html, which is the app itself, so it

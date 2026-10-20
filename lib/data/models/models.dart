@@ -298,15 +298,16 @@ enum MemberStatus {
 }
 
 /// A person who can see an account: the owner, or someone it was shared
-/// with from the phone's contacts.
+/// with by email or QR code.
 ///
-/// The mobile number is how people are identified and matched when
-/// sharing. The row's id stays a UUID, since numbers change hands.
+/// People are found by the Google address they sign in with (older
+/// invites by mobile number still work). The row's id stays a UUID.
 class AccountMember {
   final String id;
   final String accountId;
 
-  /// The person's user id once known; until then, `phone:<number>`.
+  /// The person's user id once known; until then, `email:<address>` (or
+  /// `phone:<number>`).
   final String userId;
   final String displayName;
   final String email;
@@ -328,6 +329,9 @@ class AccountMember {
   });
 
   bool get isPending => status == MemberStatus.pending;
+
+  /// The best way to name them: their name, else the address or number.
+  String get label => displayName.isNotEmpty ? displayName : (email.isNotEmpty ? email : phone);
 
   factory AccountMember.fromRow(Map<String, Object?> r) => AccountMember(
     id: r['id'] as String,

@@ -12,7 +12,17 @@ class MenuItem {
   /// Extra words the menu search matches, beyond the label.
   final String keywords;
 
-  const MenuItem(this.icon, this.label, this.path, {this.badge, this.keywords = ''});
+  /// Shown only while signed in with Google.
+  final bool signedInOnly;
+
+  const MenuItem(
+    this.icon,
+    this.label,
+    this.path, {
+    this.badge,
+    this.keywords = '',
+    this.signedInOnly = false,
+  });
 
   /// Whether this item is the screen at [location]. Home covers every
   /// account's ledger (`/account/<uuid>`).
@@ -27,11 +37,8 @@ class MenuSection {
 }
 
 /// The whole menu, shared by the phone drawer and the desktop sidebar.
+/// Home is the logo and name at the top.
 const menuSections = <MenuSection>[
-  MenuSection(null, [
-    MenuItem(Icons.home_outlined, 'Home', Routes.home, keywords: 'ledger entries cash book'),
-    MenuItem(Icons.menu_book_outlined, 'How to use the app', Routes.howToUse, keywords: 'guide help tutorial'),
-  ]),
   MenuSection('Reports', [
     MenuItem(Icons.insights_outlined, 'Insights', Routes.insights, badge: 'New', keywords: 'charts trends spending'),
     MenuItem(Icons.calendar_view_month_outlined, 'Summary', Routes.summary, keywords: 'daily monthly yearly totals'),
@@ -42,12 +49,20 @@ const menuSections = <MenuSection>[
   ]),
   MenuSection('Manage', [
     MenuItem(Icons.folder_shared_outlined, 'Accounts', Routes.accounts, keywords: 'share rename delete'),
+    MenuItem(
+      Icons.group_outlined,
+      'Sharing',
+      Routes.sharing,
+      keywords: 'invitations invite people members shared with me qr email',
+      signedInOnly: true,
+    ),
     MenuItem(Icons.swap_horiz_rounded, 'Transfer', Routes.transfer, keywords: 'move money'),
     MenuItem(Icons.cloud_sync_outlined, 'Backup and restore', Routes.backup, keywords: 'export import file'),
   ]),
   MenuSection('App', [
     MenuItem(Icons.settings_outlined, 'Settings', Routes.settings, keywords: 'currency theme profile'),
     MenuItem(Icons.help_outline_rounded, 'Help and about', Routes.help, keywords: 'faq version'),
+    MenuItem(Icons.menu_book_outlined, 'How to use the app', Routes.howToUse, keywords: 'guide help tutorial'),
   ]),
 ];
 

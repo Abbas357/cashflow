@@ -36,5 +36,9 @@ class CloudConfig {
   /// under Authentication, URL Configuration, Redirect URLs.
   /// On the web that is the app's own folder (`/` locally, `/cashflow/`
   /// on GitHub Pages), not whatever page it was on.
+  /// The published web app. Invitation links and QR codes point here, so
+  /// they open on any phone, with or without the app.
+  static const webAppUrl = 'https://abbas357.github.io/cashflow/';
+
   static String get redirectUrl => kIsWeb ? pageBase() : '$_scheme://login-callback';
 }

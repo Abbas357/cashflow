@@ -66,9 +66,13 @@ Run these from this folder, in any terminal.
   went, spending by weekday, largest expenses), Summary by day, month or
   year, Account summary, Transactions across all accounts, PDF and CSV
   export, printing with your name, address and the app icon in the header.
-* **Sharing**: share an account with contacts as Can edit or View only. The
-  person accepts the invitation by mobile number. Invites are saved locally
-  until cloud sync is enabled.
+* **Sharing** (signed in): invite someone by their Gmail address or show a
+  QR code, as Can edit or View only. They accept in the app and see every
+  entry from then on. The Sharing page shows who accepted and how many
+  entries each person made.
+* **Notifications**: a bell beside the light/dark switch, and phone or
+  browser notifications, when someone you share with adds, edits or
+  deletes an entry. Mark one or all as read.
 * **Sign in with Google** (web and Android, no passwords): the books sync to
   Supabase in the background and appear on every device signed in to the
   same Google account. Works offline; changes upload when back online.

@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/currencies.dart';
 import '../../core/utils/formatters.dart';
 import '../../services/cloud_sync.dart';
+import '../../services/notifier.dart';
 import '../../state/ledger_controller.dart';
 import '../../state/settings_controller.dart';
 import '../widgets/common.dart';
@@ -146,6 +147,24 @@ class SettingsPage extends StatelessWidget {
               ),
             ],
           ),
+          if (Notifier.supported && (context.watch<CloudSync?>()?.signedIn ?? false))
+            _Group(
+              title: 'Notifications',
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_outlined),
+                  title: const Text('Changes in shared accounts'),
+                  subtitle: const Text('When someone you share with adds, edits or deletes an entry'),
+                  value: s.notifyChanges,
+                  onChanged: (v) async {
+                    await s.setNotifyChanges(v);
+                    if (v && !await Notifier.requestPermission() && context.mounted) {
+                      toast(context, 'Allow notifications for Cash Flow in your phone or browser settings.');
+                    }
+                  },
+                ),
+              ],
+            ),
           _Group(
             title: 'Data',
             children: [

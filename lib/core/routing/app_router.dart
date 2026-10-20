@@ -20,6 +20,9 @@ import '../../ui/reports/insights_page.dart';
 import '../../ui/reports/period_summary_page.dart';
 import '../../ui/reports/reports_page.dart';
 import '../../ui/settings/settings_page.dart';
+import '../../ui/sharing/join_page.dart';
+import '../../ui/sharing/notifications_page.dart';
+import '../../ui/sharing/sharing_hub_page.dart';
 import '../../ui/transfer/transfer_page.dart';
 import '../utils/responsive.dart';
 
@@ -51,6 +54,11 @@ class Routes {
   static const settings = '/settings';
   static const help = '/help';
   static const howToUse = '/how-to-use';
+  static const sharing = '/sharing';
+  static const notifications = '/notifications';
+
+  /// An invitation to an account, as a link or QR code.
+  static String join(String code) => '/join/$code';
 
   /// The ledger of the account with [id].
   static String account(String id) => '/account/$id';
@@ -204,6 +212,12 @@ GoRouter buildRouter(
               page(Routes.settings, () => const SettingsPage()),
               page(Routes.help, () => const HelpPage()),
               page(Routes.howToUse, () => const HowToUsePage()),
+              page(Routes.sharing, () => const SharingHubPage()),
+              page(Routes.notifications, () => const NotificationsPage()),
+              GoRoute(
+                path: 'join/:code',
+                pageBuilder: (_, state) => material(state, JoinPage(code: state.pathParameters['code']!)),
+              ),
             ],
           ),
           GoRoute(

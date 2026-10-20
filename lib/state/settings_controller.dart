@@ -96,6 +96,31 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> setName(String v) => _set(_prefs.setString(_kName, v.trim()));
 
+  static const _kNotifyChanges = 'notify_changes';
+
+  /// Whether to show a notification when someone you share an account
+  /// with adds, edits or deletes an entry.
+  bool get notifyChanges => _prefs.getBool(_kNotifyChanges) ?? true;
+  Future<void> setNotifyChanges(bool v) => _set(_prefs.setBool(_kNotifyChanges, v));
+
+  static const _kUnread = 'unread_changes';
+
+  /// Changes by other people (entry_changes ids) not yet seen in the bell.
+  /// Kept on this device.
+  Set<String> get unreadChanges => {...?_prefs.getStringList(_kUnread)};
+  Future<void> setUnreadChanges(Set<String> ids) async {
+    // The newest few hundred are plenty for a badge.
+    final list = ids.toList();
+    await _prefs.setStringList(_kUnread, list.length > 500 ? list.sublist(list.length - 500) : list);
+  }
+
+  static const _kPendingJoin = 'pending_join';
+
+  /// A QR code scanned before signing in, to offer once signed in.
+  String? get pendingJoin => _prefs.getString(_kPendingJoin);
+  Future<void> setPendingJoin(String? code) =>
+      code == null ? _prefs.remove(_kPendingJoin) : _prefs.setString(_kPendingJoin, code);
+
   /// Whether dark colours are showing right now, given the system setting.
   bool isDark(BuildContext context) => switch (themeMode) {
     ThemeMode.dark => true,

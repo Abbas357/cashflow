@@ -70,7 +70,7 @@ class _AccountsPageState extends State<AccountsPage> {
           header: Padding(
             padding: const EdgeInsets.only(bottom: 12, left: 4),
             child: Text(
-              'Drag to reorder. Share an account to let people from your contacts follow it.',
+              'Drag to reorder. Share an account by email or QR code to let others follow it.',
               style: t.bodySmall,
             ),
           ),

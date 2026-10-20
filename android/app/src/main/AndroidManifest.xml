@@ -1,8 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Pick people from contacts to share an account with. -->
-    <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <!-- Google sign-in and cloud sync. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Telling you when someone you share with adds or edits an entry. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Scanning an invitation QR code. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="${appLabel}"
         android:name="${applicationName}"

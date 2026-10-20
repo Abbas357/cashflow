@@ -6,10 +6,12 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/config/cloud_config.dart';
+import '../core/utils/formatters.dart';
 import '../data/db/app_database.dart';
 import '../data/models/models.dart';
 import '../state/ledger_controller.dart';
 import '../state/settings_controller.dart';
+import 'notifier.dart';
 
 enum SyncState {
   /// No cloud project in this build.
@@ -65,6 +67,13 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   /// only), and the last error, for the details sheet.
   int rejected = 0;
   String? error;
+
+  /// Invitations to other people's accounts, waiting for an answer.
+  List<Invitation> invitations = const [];
+
+  /// Changes other people made, brought by the last download, still to
+  /// be announced.
+  final _news = <Map<String, dynamic>>[];
 
   StreamSubscription<AuthState>? _auth;
   RealtimeChannel? _channel;
@@ -154,6 +163,8 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
       await _client.auth.signOut(scope: SignOutScope.local);
     } catch (_) {}
     await _onAuth(null);
+    invitations = const [];
+    await settings.setUnreadChanges({});
     await _wipeLocal();
     await settings.forgetCloudUser();
     await ledger.reload();
@@ -275,6 +286,9 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
           _showingArrivals = false;
         }
       }
+      await _remember();
+      await _announce();
+      await _refreshInvitations();
       status = SyncState.synced;
       lastSynced = DateTime.now();
       error = null;
@@ -400,7 +414,8 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
         // The cloud adds each account's owner itself.
         if (r['role'] == AccountRole.owner.name || !owned.contains(r['account_id'])) return null;
         // An invite has no user until the person accepts it.
-        if ((r['user_id'] as String).startsWith('phone:')) r['user_id'] = null;
+        final user = r['user_id'] as String;
+        if (user.startsWith('phone:') || user.startsWith('email:')) r['user_id'] = null;
       case 'entry_changes':
         for (final k in ['old_data', 'new_data']) {
           final v = r[k];
@@ -418,9 +433,64 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     for (final table in ['accounts', 'entries', 'entry_changes']) {
       arrived = await _pullTable(table) || arrived;
     }
-    await _pullMembers();
+    var visible = await _pullMembers();
+    // Accounts shared with this user since the last time (an invitation
+    // accepted here or on another device, a QR code) come down whole.
+    final local = {for (final r in await _db.query('accounts', columns: ['id'])) r['id'] as String};
+    final missing = visible.difference(local);
+    if (missing.isNotEmpty) {
+      await _pullAccounts(missing);
+      visible = await _pullMembers();
+      arrived = true;
+    }
     await _db.transaction((txn) => _applying(txn, () => _fixRoles(txn)));
+    arrived = await _dropLost(visible) || arrived;
     return arrived;
+  }
+
+  /// Everything in the accounts [ids]: the accounts, their entries and
+  /// their history, a page at a time.
+  Future<void> _pullAccounts(Set<String> ids) async {
+    final list = ids.toList();
+    for (final (table, column) in [('accounts', 'id'), ('entries', 'account_id'), ('entry_changes', 'account_id')]) {
+      final columns = await _columns(table);
+      var after = _nilId;
+      while (true) {
+        final rows = await _client
+            .from(table)
+            .select()
+            .inFilter(column, list)
+            .gt('id', after)
+            .order('id', ascending: true)
+            .limit(_pageSize);
+        if (rows.isEmpty) break;
+        await _db.transaction((txn) => _applying(txn, () async {
+          for (final r in rows) {
+            await _write(txn, table, _toLocal(table, r, columns));
+          }
+        }));
+        after = rows.last['id'] as String;
+        if (rows.length < _pageSize) break;
+      }
+    }
+  }
+
+  /// Accounts shared with this user that they can no longer see (they
+  /// were removed, or left) leave this device too. Returns whether any did.
+  Future<bool> _dropLost(Set<String> visible) async {
+    final lost = [
+      for (final r in await _db.query('accounts', columns: ['id'], where: "role != 'owner'"))
+        if (!visible.contains(r['id'])) r['id'] as String,
+    ];
+    if (lost.isEmpty) return false;
+    final marks = _marks(lost.length);
+    await _db.transaction((txn) => _applying(txn, () async {
+      for (final t in ['entry_changes', 'entries', 'account_members']) {
+        await txn.delete(t, where: 'account_id IN ($marks)', whereArgs: lost);
+      }
+      await txn.delete('accounts', where: 'id IN ($marks)', whereArgs: lost);
+    }));
+    return true;
   }
 
   /// Fetches rows of [table] changed since the last download, in
@@ -453,7 +523,11 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
             // A newer change on this device wins; it uploads next and
             // comes back down afterwards.
             if (waiting.contains(r['id'])) continue;
-            if (await _write(txn, table, _toLocal(table, r, columns))) arrived = true;
+            if (await _write(txn, table, _toLocal(table, r, columns))) {
+              arrived = true;
+              // Someone else's change, after the first download: tell them.
+              if (table == 'entry_changes' && since != null && r['changed_by'] != _uid) _news.add(r);
+            }
           }
         });
         final last = rows.last;
@@ -467,8 +541,9 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Members are few, so all of them come down each time; that way people
-  /// removed from an account disappear here too.
-  Future<void> _pullMembers() async {
+  /// removed from an account disappear here too. Returns the accounts this
+  /// user can see.
+  Future<Set<String>> _pullMembers() async {
     final rows = await _client.from('account_members').select();
     final columns = await _columns('account_members');
     final waiting = await _waiting('account_members');
@@ -497,6 +572,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
         }
       });
     });
+    return accounts;
   }
 
   /// Each account's role here is this user's role in it.
@@ -521,7 +597,10 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
         _ => value,
       };
     }
-    if (table == 'account_members' && r['user_id'] == null) r['user_id'] = 'phone:${r['phone']}';
+    if (table == 'account_members' && r['user_id'] == null) {
+      final phone = r['phone'] as String? ?? '';
+      r['user_id'] = phone.isNotEmpty ? 'phone:$phone' : 'email:${(r['email'] as String? ?? '').toLowerCase()}';
+    }
     return r;
   }
 
@@ -541,6 +620,127 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     if (row.entries.every((e) => old[e.key] == e.value)) return false;
     await txn.update(table, row, where: 'id = ?', whereArgs: [row['id']]);
     return true;
+  }
+
+  // ----------------------------------------------------------- sharing
+
+  Future<void> _refreshInvitations() async {
+    final rows = await _client.rpc('my_invitations') as List;
+    final list = [for (final r in rows) Invitation._(r as Map<String, dynamic>)];
+    if (list.length != invitations.length ||
+        list.indexed.any((e) => e.$2.memberId != invitations[e.$1].memberId)) {
+      invitations = list;
+      notifyListeners();
+    }
+  }
+
+  /// Joins the account [i] is for. Its entries and history come down
+  /// straight away. Returns the account's id.
+  Future<String> acceptInvitation(Invitation i) async {
+    final id = await _client.rpc('accept_invitation', params: {'p_member': i.memberId}) as String;
+    invitations = [for (final x in invitations) if (x.memberId != i.memberId) x];
+    notifyListeners();
+    await sync();
+    return id;
+  }
+
+  Future<void> declineInvitation(Invitation i) async {
+    await _client.rpc('decline_invitation', params: {'p_member': i.memberId});
+    invitations = [for (final x in invitations) if (x.memberId != i.memberId) x];
+    notifyListeners();
+  }
+
+  /// A QR code (and link) that lets whoever scans it join [accountId] as
+  /// [role], for a day. Needs the internet; the account uploads first.
+  Future<InviteCode> createInviteCode(String accountId, AccountRole role) async {
+    await sync();
+    final row = await _client
+        .from('account_invites')
+        .insert({'account_id': accountId, 'role': role.name})
+        .select('id, expires_at')
+        .single();
+    return InviteCode(row['id'] as String, DateTime.parse(row['expires_at'] as String).toLocal());
+  }
+
+  /// Stops a code early, so nobody else can join with it.
+  Future<void> stopInviteCode(String code) => _client
+      .from('account_invites')
+      .update({'stopped_at': DateTime.now().toUtc().toIso8601String()})
+      .eq('id', code);
+
+  /// What a scanned code is for, or null if there is no such code.
+  Future<CodeDetails?> codeDetails(String code) async {
+    final rows = await _client.rpc('invite_code_details', params: {'p_code': code}) as List;
+    return rows.isEmpty ? null : CodeDetails._(rows.first as Map<String, dynamic>);
+  }
+
+  /// Joins the account a code is for. Returns the account's id.
+  Future<String> joinWithCode(String code) async {
+    final id = await _client.rpc('join_with_code', params: {'p_code': code}) as String;
+    await sync();
+    return id;
+  }
+
+  /// For the bell: how many changes by others are unread, plus
+  /// invitations waiting for an answer.
+  int get unread => settings.unreadChanges.length + invitations.length;
+
+  bool isUnread(String changeId) => settings.unreadChanges.contains(changeId);
+
+  Future<void> markRead(String changeId) async {
+    final ids = settings.unreadChanges;
+    if (!ids.remove(changeId)) return;
+    await settings.setUnreadChanges(ids);
+    notifyListeners();
+  }
+
+  Future<void> markAllRead() async {
+    await settings.setUnreadChanges({});
+    notifyListeners();
+  }
+
+  /// The changes just downloaded stay unread in the bell until opened.
+  Future<void> _remember() async {
+    if (_news.isEmpty) return;
+    await settings.setUnreadChanges({...settings.unreadChanges, for (final n in _news) n['id'] as String});
+  }
+
+  /// Changes other people made, as notifications: one per change, or one
+  /// per account when several came at once.
+  Future<void> _announce() async {
+    if (_news.isEmpty) return;
+    final news = [..._news];
+    _news.clear();
+    if (!settings.notifyChanges) return;
+    final names = {for (final a in ledger.accounts) a.id: a.name};
+    final byAccount = <String, List<Map<String, dynamic>>>{};
+    for (final n in news) {
+      (byAccount[n['account_id'] as String] ??= []).add(n);
+    }
+    String who(Map<String, dynamic> n) {
+      final name = (n['changed_by_name'] as String? ?? '').trim();
+      return name.isEmpty ? 'Someone' : name;
+    }
+
+    for (final MapEntry(key: id, value: list) in byAccount.entries) {
+      final account = names[id] ?? 'A shared account';
+      if (list.length == 1) {
+        final n = list.single;
+        final data = (n['new_data'] ?? n['old_data']) as Map<String, dynamic>? ?? const {};
+        final did = switch (n['action']) {
+          'created' => 'added',
+          'updated' => 'edited',
+          _ => 'deleted',
+        };
+        final kind = data['type'] == 'in' ? 'Cash In' : 'Cash Out';
+        final note = (data['note'] as String? ?? '').trim();
+        final amount = data['amount'] is num ? ' ${Fmt.money(data['amount'] as num)}' : '';
+        await Notifier.show(account, '${who(n)} $did $kind$amount${note.isEmpty ? '' : ': $note'}');
+      } else {
+        final people = {for (final n in list) who(n)}.join(', ');
+        await Notifier.show(account, '$people made ${list.length} changes');
+      }
+    }
   }
 
   // ---------------------------------------------------------------- helpers
@@ -600,4 +800,47 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   static String _utc(String s) => s.endsWith('+00:00') ? '${s.substring(0, s.length - 6)}Z' : toIso(DateTime.parse(s));
 
   static String _marks(int n) => List.filled(n, '?').join(', ');
+}
+
+/// Someone shared an account with this user; they have not answered yet.
+class Invitation {
+  final String memberId;
+  final String accountId;
+  final String accountName;
+  final AccountRole role;
+  final String invitedBy;
+  final DateTime invitedAt;
+
+  Invitation._(Map<String, dynamic> r)
+    : memberId = r['member_id'] as String,
+      accountId = r['account_id'] as String,
+      accountName = r['account_name'] as String? ?? '',
+      role = AccountRole.parse(r['role'] as String?),
+      invitedBy = r['invited_by_name'] as String? ?? '',
+      invitedAt = DateTime.parse(r['invited_at'] as String).toLocal();
+}
+
+/// A QR code an owner made for an account.
+class InviteCode {
+  final String code;
+  final DateTime expiresAt;
+  const InviteCode(this.code, this.expiresAt);
+}
+
+/// What a scanned code is for.
+class CodeDetails {
+  final String accountId;
+  final String accountName;
+  final AccountRole role;
+  final String invitedBy;
+  final bool usable;
+  final bool alreadyMember;
+
+  CodeDetails._(Map<String, dynamic> r)
+    : accountId = r['account_id'] as String,
+      accountName = r['account_name'] as String? ?? '',
+      role = AccountRole.parse(r['role'] as String?),
+      invitedBy = r['invited_by_name'] as String? ?? '',
+      usable = r['usable'] as bool? ?? false,
+      alreadyMember = r['already_member'] as bool? ?? false;
 }

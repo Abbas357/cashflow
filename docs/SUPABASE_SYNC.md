@@ -70,12 +70,13 @@ edits stay in the entry's history with their before and after values.
 ## Turning it on
 
 Steps 1, 2 and 6 are done: the project is **cashflow**
-(`arkeaalomelhupqrkfec`, Mumbai), all three migrations are applied, and
+(`arkeaalomelhupqrkfec`, Mumbai), all four migrations are applied, and
 the app points at it.
 
 1. **Create a Supabase project** at https://supabase.com (free tier is fine).
 2. **Run the migrations** in order, in the SQL editor (or `supabase db push`):
-   `0001_init.sql`, `0002_google_sync.sql`, `0003_harden_functions.sql`.
+   `0001_init.sql`, `0002_google_sync.sql`, `0003_harden_functions.sql`,
+   `0004_share_by_email_and_qr.sql`.
 3. **Google OAuth client.** In Google Cloud Console, APIs and Services,
    Credentials: create an OAuth client ID of type **Web application**.
    Authorised redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
@@ -98,11 +99,49 @@ button explains that sign-in is not set up in that build.
 
 ## Sharing
 
-Sharing still invites people by **mobile number** (`account_members.phone`,
-`my_invitations()`), as planned in `0001_init.sql`. Google accounts carry an
-email, not a verified number, so invitations will not yet reach the person
-they are for. Matching invites by email (or asking for a number once after
-sign-in) is the next step.
+People sign in with Google, so they are found by the address Google
+verified (`0004_share_by_email_and_qr.sql`). In an account's **Share**
+screen the owner picks **Can edit** or **View only**, then either:
+
+* **Invites by email.** The Gmail address is saved as a pending
+  `account_members` row (offline too; it uploads with everything else).
+  When that person opens the app, `my_invitations()` finds it and the home
+  screen shows it with **Accept** and **Decline**. Declined invitations
+  show as Declined to the owner, who can invite again.
+* **Shows a QR code.** `account_invites` holds a code for one account and
+  role, valid for a day or until the owner stops it. It encodes
+  `https://abbas357.github.io/cashflow/join/<code>`: the Android app scans
+  it under **Sharing, Scan QR code**; any phone camera opens it in the web
+  app. `invite_code_details()` says what it is for, and `join_with_code()`
+  joins on **Accept**. Scanned while signed out, the code is kept and
+  offered again right after Google sign-in.
+
+After joining, the next sync notices an account it can see but does not
+have, and downloads it whole (account, entries, history). People removed
+from an account lose it from their devices on the next sync.
+
+The menu's **Sharing** page (signed in only) lists invitations waiting for
+you, accounts shared with you, and everyone you shared with: whether they
+accepted, their role, and how many entries they made.
+
+## Notifications
+
+When a sync brings a change someone else made (added, edited or deleted an
+entry), the app shows a notification on Android or in the browser, and the
+**bell** next to the light/dark switch counts it as unread until opened or
+**Mark all read**. These come from the app itself, so they appear while it
+is open or still running in the background. Notifications to a closed app
+need Firebase Cloud Messaging and a server function that sends them; that
+is a later step.
+
+## Web updates
+
+GitHub Pages lets browsers keep files for 10 minutes. After each build,
+`tool/web_cache_bust.dart` gives the scripts versioned addresses
+(`main.dart.js?v=<commit>`, `canvaskit-<engine>/`), so a plain refresh
+loads the new version. The running app also checks `build_id.txt` every few
+minutes and when the tab comes back to the front, and offers **Reload**
+when a newer build is live.
 
 ## Receipts
 

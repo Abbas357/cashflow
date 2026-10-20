@@ -163,6 +163,74 @@ class LedgerRepository {
     });
   }
 
+  /// Shares an account with whoever signs in with the Google address
+  /// [email]. Saved as a pending invite; it uploads with everything else
+  /// and the person sees it when they open the app. Inviting an address
+  /// again (after a decline, say) asks again with the new role.
+  Future<void> inviteByEmail({
+    required String accountId,
+    required String email,
+    required AccountRole role,
+  }) async {
+    final address = email.trim().toLowerCase();
+    await db.transaction((txn) async {
+      final existing = await txn.query(
+        'account_members',
+        where: 'account_id = ? AND lower(email) = ?',
+        whereArgs: [accountId, address],
+      );
+      if (existing.isEmpty) {
+        await txn.insert(
+          'account_members',
+          AccountMember(
+            id: newId(),
+            accountId: accountId,
+            userId: 'email:$address',
+            displayName: '',
+            email: address,
+            role: role,
+            status: MemberStatus.pending,
+            joinedAt: DateTime.now(),
+          ).toRow(),
+        );
+      } else {
+        final m = AccountMember.fromRow(existing.first);
+        await txn.update(
+          'account_members',
+          {
+            'role': role.name,
+            if (m.status == MemberStatus.declined) 'status': MemberStatus.pending.name,
+          },
+          where: 'id = ?',
+          whereArgs: [m.id],
+        );
+      }
+      await txn.update(
+        'accounts',
+        {'is_shared': 1, 'updated_at': isoNow()},
+        where: 'id = ?',
+        whereArgs: [accountId],
+      );
+    });
+  }
+
+  /// Entries each person has added to [accountId], and when they last did,
+  /// by user id.
+  Future<Map<String, (int, DateTime?)>> entriesBy(String accountId) async {
+    final rows = await db.rawQuery(
+      '''SELECT created_by, COUNT(*) AS n, MAX(created_at) AS last FROM entries
+         WHERE account_id = ? AND deleted_at IS NULL GROUP BY created_by''',
+      [accountId],
+    );
+    return {
+      for (final r in rows)
+        r['created_by'] as String: (
+          (r['n'] as num).toInt(),
+          r['last'] == null ? null : fromIso(r['last'] as String),
+        ),
+    };
+  }
+
   Future<void> setMemberRole(String memberId, AccountRole role) =>
       db.update('account_members', {'role': role.name}, where: 'id = ?', whereArgs: [memberId]);
 
@@ -409,6 +477,19 @@ class LedgerRepository {
       'entry_changes',
       where: accountId == null ? null : 'account_id = ?',
       whereArgs: accountId == null ? null : [accountId],
+      orderBy: 'changed_at DESC',
+      limit: limit,
+    );
+    return rows.map(EntryChange.fromRow).toList();
+  }
+
+  /// Changes other people made, across every account, newest first: what
+  /// the notification bell lists.
+  Future<List<EntryChange>> changesByOthers(String me, {int limit = 200}) async {
+    final rows = await db.query(
+      'entry_changes',
+      where: 'changed_by != ?',
+      whereArgs: [me],
       orderBy: 'changed_at DESC',
       limit: limit,
     );

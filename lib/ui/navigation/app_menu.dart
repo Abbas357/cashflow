@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../services/cloud_sync.dart';
 import 'menu_items.dart';
 import 'menu_search.dart';
 import 'profile_footer.dart';
@@ -109,6 +112,46 @@ class MenuRow extends StatelessWidget {
   }
 }
 
+/// The logo and name at the top of the menu, which go home (the open
+/// account's ledger). With no [style], just the logo, for the folded rail.
+class HomeLink extends StatelessWidget {
+  final TextStyle? style;
+  final double size;
+  final VoidCallback? onOpen;
+
+  const HomeLink({super.key, this.style, this.size = 30, this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    void home() {
+      onOpen?.call();
+      context.go(Routes.home);
+    }
+
+    if (style == null) {
+      return IconButton(tooltip: 'Home', onPressed: home, icon: BrandMark(size: size));
+    }
+    return Tooltip(
+      message: 'Home',
+      waitDuration: const Duration(milliseconds: 600),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: home,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            children: [
+              BrandMark(size: size),
+              const SizedBox(width: 10),
+              Flexible(child: Text('Cash Flow', style: style, overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The sections and rows. [onOpen] runs before navigating (to close a
 /// drawer, for example).
 class MenuList extends StatelessWidget {
@@ -121,10 +164,18 @@ class MenuList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
+    final cloud = context.watch<CloudSync?>();
+    final signedIn = cloud?.signedIn ?? false;
+    final waiting = cloud?.invitations.length ?? 0;
+    final sections = [
+      for (final s in menuSections)
+        MenuSection(s.title, [for (final i in s.items) if (signedIn || !i.signedInOnly) i]),
+    ].where((s) => s.items.isNotEmpty);
+
     return Column(
       crossAxisAlignment: collapsed ? CrossAxisAlignment.center : CrossAxisAlignment.stretch,
       children: [
-        for (final (i, section) in menuSections.indexed) ...[
+        for (final (i, section) in sections.indexed) ...[
           if (section.title != null)
             collapsed
                 ? Padding(
@@ -141,7 +192,8 @@ class MenuList extends StatelessWidget {
             MenuRow(
               icon: item.icon,
               label: item.label,
-              badge: item.badge,
+              // Invitations waiting for you show on Sharing.
+              badge: item.path == Routes.sharing && waiting > 0 ? '$waiting' : item.badge,
               collapsed: collapsed,
               selected: item.isCurrent(location),
               onTap: () {
@@ -175,12 +227,10 @@ class AppMenu extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
             child: Row(
               children: [
-                const BrandMark(),
-                const SizedBox(width: 10),
-                Expanded(child: Text('Cash Flow', style: t.titleLarge)),
+                Expanded(child: HomeLink(style: t.titleLarge, onOpen: close)),
                 IconButton(
                   tooltip: 'Search menu',
                   icon: const Icon(Icons.search_rounded),

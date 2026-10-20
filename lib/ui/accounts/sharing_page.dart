@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatters.dart';
 import '../../data/models/models.dart';
+import '../../services/cloud_sync.dart';
+import '../../services/notifier.dart';
 import '../../state/ledger_controller.dart';
+import '../navigation/profile_footer.dart';
+import '../sharing/invite_widgets.dart';
 import '../widgets/common.dart';
-import 'contact_picker.dart';
+import '../widgets/google_button.dart';
 
 /// Who can see an account, and what they may do.
 ///
-/// People are added from the phone's contacts (or by number on desktop)
-/// as Can edit or View only. While the app is offline-only the invites
-/// wait here as "Pending"; once cloud sync is on they are delivered to
-/// whoever signs in with that number.
+/// People sign in with Google, so they are invited by their Gmail address
+/// (they see the invitation when they open the app) or by a QR code they
+/// scan. Either way they choose to accept, and get Can edit or View only.
 class SharingPage extends StatefulWidget {
   final Account account;
 
@@ -23,7 +27,13 @@ class SharingPage extends StatefulWidget {
 }
 
 class _SharingPageState extends State<SharingPage> {
+  static final _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  final _email = TextEditingController();
+  AccountRole _role = AccountRole.editor;
+  String? _emailError;
   List<AccountMember>? _members;
+  Map<String, (int, DateTime?)> _entries = const {};
 
   @override
   void initState() {
@@ -31,41 +41,64 @@ class _SharingPageState extends State<SharingPage> {
     _load();
   }
 
-  Future<void> _load() async {
-    final m = await context.read<LedgerController>().repo.members(widget.account.id);
-    if (mounted) setState(() => _members = m);
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
   }
 
-  Future<void> _add() async {
-    final picked = await pickPeople(context);
-    if (picked == null || picked.people.isEmpty || !mounted) return;
-    final ledger = context.read<LedgerController>();
-    for (final p in picked.people) {
-      await ledger.repo.invite(
-        accountId: widget.account.id,
-        name: p.name,
-        phone: p.phone,
-        role: picked.role,
-      );
-    }
-    await ledger.changed();
-    await _load();
+  Future<void> _load() async {
+    final repo = context.read<LedgerController>().repo;
+    final m = await repo.members(widget.account.id);
+    final e = await repo.entriesBy(widget.account.id);
     if (mounted) {
-      toast(context, '${picked.people.length} invite(s) saved. They go out when cloud sync is on.');
+      setState(() {
+        _members = m;
+        _entries = e;
+      });
+    }
+  }
+
+  Future<void> _invite(CloudSync cloud) async {
+    final address = _email.text.trim().toLowerCase();
+    String? problem;
+    if (!_emailShape.hasMatch(address)) {
+      problem = 'Type an email address, like ali.khan@gmail.com';
+    } else if (address == cloud.email?.toLowerCase()) {
+      problem = 'That is your own address';
+    } else if (_members!.any((m) => m.email == address && m.status == MemberStatus.active)) {
+      problem = 'They already have access';
+    }
+    setState(() => _emailError = problem);
+    if (problem != null) return;
+
+    final ledger = context.read<LedgerController>();
+    await ledger.repo.inviteByEmail(accountId: widget.account.id, email: address, role: _role);
+    await ledger.changed();
+    _email.clear();
+    await _load();
+    // So they hear when the other side adds entries.
+    await Notifier.requestPermission();
+    if (mounted) {
+      toast(context, 'Invitation sent to $address. They will see it when they open Cash Flow.');
     }
   }
 
   Future<void> _setRole(AccountMember m, AccountRole role) async {
-    await context.read<LedgerController>().repo.setMemberRole(m.id, role);
+    final ledger = context.read<LedgerController>();
+    await ledger.repo.setMemberRole(m.id, role);
+    await ledger.changed();
     await _load();
   }
 
   Future<void> _remove(AccountMember m) async {
     final ok = await confirm(
       context,
-      title: 'Remove ${m.displayName.isEmpty ? m.phone : m.displayName}?',
-      message: 'They will no longer see "${widget.account.name}".',
-      confirmLabel: 'Remove',
+      title: m.isPending ? 'Cancel the invitation to ${m.label}?' : 'Remove ${m.label}?',
+      message: m.isPending
+          ? 'They will no longer see the invitation.'
+          : 'They will no longer see "${widget.account.name}". Entries they made stay.',
+      confirmLabel: m.isPending ? 'Cancel invitation' : 'Remove',
     );
     if (!ok || !mounted) return;
     final ledger = context.read<LedgerController>();
@@ -79,6 +112,8 @@ class _SharingPageState extends State<SharingPage> {
     final t = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final c = context.cash;
+    final cloud = context.watch<CloudSync?>();
+    final signedIn = cloud?.signedIn ?? false;
     final canManage = widget.account.role.canManage;
     final members = _members;
 
@@ -97,31 +132,78 @@ class _SharingPageState extends State<SharingPage> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppTheme.radius),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.cloud_off_outlined, color: scheme.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Cash Flow works fully offline. Invites are saved on this '
-                          'device and sent once cloud sync is switched on. The '
-                          'person signs in with that mobile number, accepts the '
-                          'invitation, and from then on sees every entry and each '
-                          'change, including the old value.',
-                          style: t.bodySmall?.copyWith(color: scheme.onSurface),
+                if (!signedIn) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppTheme.radius),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Sign in with Google to share this account. The people you share it '
+                          'with sign in too, and see every entry on their phone or the web. '
+                          'Your books are also saved online, so they are not lost.',
+                          style: t.bodyMedium,
                         ),
-                      ),
-                    ],
+                        if (cloud != null) ...[
+                          const SizedBox(height: 12),
+                          GoogleButton(onPressed: () => signInWithGoogle(context, cloud)),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
+                ] else if (canManage) ...[
+                  Text('Invite someone', style: t.titleMedium),
+                  const SizedBox(height: 10),
+                  SegmentedButton<AccountRole>(
+                    segments: const [
+                      ButtonSegment(value: AccountRole.editor, icon: Icon(Icons.edit_outlined), label: Text('Can edit')),
+                      ButtonSegment(value: AccountRole.viewer, icon: Icon(Icons.visibility_outlined), label: Text('View only')),
+                    ],
+                    selected: {_role},
+                    onSelectionChanged: (v) => setState(() => _role = v.first),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _invite(cloud!),
+                    onChanged: (_) {
+                      if (_emailError != null) setState(() => _emailError = null);
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Their Gmail address',
+                      hintText: 'ali.khan@gmail.com',
+                      prefixIcon: const Icon(Icons.alternate_email_rounded),
+                      errorText: _emailError,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: () => _invite(cloud!),
+                    icon: const Icon(Icons.send_rounded),
+                    label: const Text('Send invitation'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => showInviteQr(context, widget.account, _role),
+                    icon: const Icon(Icons.qr_code_2_rounded),
+                    label: const Text('Show QR code to scan'),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'By email: they see the invitation when they open Cash Flow and accept it. '
+                    'By QR code: they scan it on their phone, there and then.',
+                    style: t.bodySmall,
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 Text('People', style: t.titleMedium),
                 const SizedBox(height: 8),
                 Card(
@@ -131,6 +213,7 @@ class _SharingPageState extends State<SharingPage> {
                         if (i > 0) Divider(height: 1, indent: 72, color: c.hairline),
                         _MemberTile(
                           member: members[i],
+                          entries: _entries[members[i].userId],
                           canManage: canManage && members[i].role != AccountRole.owner,
                           onRole: (r) => _setRole(members[i], r),
                           onRemove: () => _remove(members[i]),
@@ -139,13 +222,6 @@ class _SharingPageState extends State<SharingPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                if (canManage)
-                  FilledButton.icon(
-                    onPressed: _add,
-                    icon: const Icon(Icons.contacts_outlined),
-                    label: const Text('Share with contacts'),
-                  ),
                 const SizedBox(height: 20),
                 Text('What each role can do', style: t.titleSmall),
                 const SizedBox(height: 8),
@@ -167,12 +243,14 @@ class _SharingPageState extends State<SharingPage> {
 
 class _MemberTile extends StatelessWidget {
   final AccountMember member;
+  final (int, DateTime?)? entries;
   final bool canManage;
   final ValueChanged<AccountRole> onRole;
   final VoidCallback onRemove;
 
   const _MemberTile({
     required this.member,
+    required this.entries,
     required this.canManage,
     required this.onRole,
     required this.onRemove,
@@ -181,7 +259,15 @@ class _MemberTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    final name = member.displayName.isEmpty ? member.phone : member.displayName;
+    final name = member.label;
+    final n = entries?.$1 ?? 0;
+    final status = switch (member.status) {
+      MemberStatus.pending => 'Invited, has not answered yet',
+      MemberStatus.declined => 'Declined',
+      MemberStatus.active => n == 0
+          ? 'No entries yet'
+          : '$n ${n == 1 ? 'entry' : 'entries'}${entries!.$2 == null ? '' : ', last ${Fmt.dayShort(entries!.$2!)}'}',
+    };
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: member.role == AccountRole.owner
@@ -192,11 +278,7 @@ class _MemberTile extends StatelessWidget {
       ),
       title: Text(name),
       subtitle: Text(
-        [
-          if (member.phone.isNotEmpty && member.displayName.isNotEmpty) member.phone,
-          if (member.isPending) 'Invited, waiting for them to accept',
-          if (member.status == MemberStatus.declined) 'Declined',
-        ].join('  ·  ').ifEmpty(member.role.label),
+        [if (member.email.isNotEmpty && member.email != name) member.email, status].join('\n'),
         style: t.bodySmall,
       ),
       trailing: canManage
@@ -215,9 +297,12 @@ class _MemberTile extends StatelessWidget {
                   child: const Text('View only'),
                 ),
                 const PopupMenuDivider(),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'remove',
-                  child: Text('Remove', style: TextStyle(color: AppTheme.errorColor)),
+                  child: Text(
+                    member.isPending ? 'Cancel invitation' : 'Remove',
+                    style: const TextStyle(color: AppTheme.errorColor),
+                  ),
                 ),
               ],
               child: Padding(
@@ -234,10 +319,6 @@ class _MemberTile extends StatelessWidget {
           : Text(member.role.label, style: t.labelLarge),
     );
   }
-}
-
-extension on String {
-  String ifEmpty(String other) => isEmpty ? other : this;
 }
 
 class _RoleHelp extends StatelessWidget {

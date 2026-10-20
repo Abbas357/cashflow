@@ -52,6 +52,23 @@ void main() {
     expect(await outbox(), contains(('account_members', 'delete')));
   });
 
+  test('inviting by email waits as pending, and asks again after a decline', () async {
+    final a = await repo.createAccount('Flat');
+    await repo.inviteByEmail(accountId: a.id, email: ' Ali.Khan@Gmail.com ', role: AccountRole.viewer);
+
+    var invited = (await repo.members(a.id)).singleWhere((m) => m.role != AccountRole.owner);
+    expect(invited.email, 'ali.khan@gmail.com');
+    expect(invited.userId, 'email:ali.khan@gmail.com');
+    expect(invited.isPending, isTrue);
+    expect((await repo.accounts()).single.isShared, isTrue);
+
+    await repo.db.update('account_members', {'status': 'declined'}, where: 'id = ?', whereArgs: [invited.id]);
+    await repo.inviteByEmail(accountId: a.id, email: 'ali.khan@gmail.com', role: AccountRole.editor);
+    invited = (await repo.members(a.id)).singleWhere((m) => m.role != AccountRole.owner);
+    expect(invited.isPending, isTrue);
+    expect(invited.role, AccountRole.editor);
+  });
+
   test('rows written while applying downloads are not sent back', () async {
     await repo.db.transaction((txn) async {
       await txn.insert('sync_meta', {'key': 'applying', 'value': '1'});

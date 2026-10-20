@@ -247,6 +247,7 @@ class AppSidebar extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 10),
+                const HomeLink(size: 26),
                 fold,
                 search,
                 const SizedBox(height: 6),
@@ -266,18 +267,10 @@ class AppSidebar extends StatelessWidget {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 6, 6),
+                padding: const EdgeInsets.fromLTRB(12, 10, 6, 6),
                 child: Row(
                   children: [
-                    const BrandMark(size: 26),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Cash Flow',
-                        style: t.titleMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    Expanded(child: HomeLink(size: 26, style: t.titleMedium)),
                     search,
                     fold,
                   ],

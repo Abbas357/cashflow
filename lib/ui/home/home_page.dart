@@ -6,11 +6,14 @@ import 'package:provider/provider.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/models.dart';
+import '../../services/cloud_sync.dart';
 import '../../state/ledger_controller.dart';
 import '../../state/settings_controller.dart';
 import '../navigation/app_menu.dart';
 import '../reports/report_actions.dart';
 import '../settings/profile_page.dart';
+import '../sharing/invite_widgets.dart';
+import '../sharing/notifications_page.dart';
 import '../widgets/common.dart';
 import 'widgets/account_switcher.dart';
 import 'widgets/cash_bar.dart';
@@ -147,6 +150,7 @@ class _LedgerState extends State<_Ledger> {
             onPressed: () => _closeSearch(ledger),
           )
         else ...[
+          if (context.watch<CloudSync?>()?.signedIn ?? false) const NotificationBell(),
           IconButton(
             tooltip: dark ? 'Light mode' : 'Dark mode',
             icon: Icon(dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
@@ -173,6 +177,7 @@ class _LedgerState extends State<_Ledger> {
         ? const Center(child: CircularProgressIndicator())
         : Column(
             children: [
+              const InvitationBanner(),
               PeriodBar(onPickRange: () => _pickRange(ledger)),
               const Expanded(child: EntryList()),
               CashBar(
