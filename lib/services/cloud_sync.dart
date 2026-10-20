@@ -41,6 +41,13 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   CloudSync(this.ledger, this.settings);
 
   static const _pageSize = 500;
+
+  /// How long the app waits after the last change on this device before
+  /// uploading, so a run of entries goes up together.
+  static const _uploadDelay = Duration(seconds: 10);
+
+  /// How often it checks the cloud when Realtime has said nothing.
+  static const _checkEvery = Duration(minutes: 5);
   static const _nilId = '00000000-0000-0000-0000-000000000000';
 
   /// Postgres errors that mean the cloud will never take this row (no
@@ -66,6 +73,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   String? _uid;
   int _seenRevision = 0;
   bool _running = false;
+  bool _showingArrivals = false;
   bool _again = false;
 
   Database get _db => ledger.repo.db;
@@ -168,7 +176,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     await _adopt(u);
     _listenForChanges();
     _periodic?.cancel();
-    _periodic = Timer.periodic(const Duration(minutes: 2), (_) => _schedule(Duration.zero));
+    _periodic = Timer.periodic(_checkEvery, (_) => _schedule(Duration.zero));
     await sync();
   }
 
@@ -205,8 +213,10 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   void _onLedger() {
     if (ledger.revision == _seenRevision) return;
     _seenRevision = ledger.revision;
+    // The screen refreshing with downloaded rows is not a change to upload.
+    if (_showingArrivals) return;
     unawaited(_countPending());
-    if (signedIn) _schedule(const Duration(milliseconds: 1200));
+    if (signedIn) _schedule(_uploadDelay);
   }
 
   @override
@@ -258,8 +268,12 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
         arrived = await _pull() || arrived;
       } while (_again);
       if (arrived) {
-        await ledger.syncArrived();
-        _seenRevision = ledger.revision;
+        _showingArrivals = true;
+        try {
+          await ledger.syncArrived();
+        } finally {
+          _showingArrivals = false;
+        }
       }
       status = SyncState.synced;
       lastSynced = DateTime.now();
@@ -439,8 +453,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
             // A newer change on this device wins; it uploads next and
             // comes back down afterwards.
             if (waiting.contains(r['id'])) continue;
-            await _write(txn, table, _toLocal(table, r, columns));
-            arrived = true;
+            if (await _write(txn, table, _toLocal(table, r, columns))) arrived = true;
           }
         });
         final last = rows.last;
@@ -514,9 +527,20 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Updates the row, or inserts it when new. Not INSERT OR REPLACE: that
   /// deletes first, and deleting an account cascades to its entries.
-  Future<void> _write(Transaction txn, String table, Map<String, Object?> row) async {
-    final n = await txn.update(table, row, where: 'id = ?', whereArgs: [row['id']]);
-    if (n == 0) await txn.insert(table, row);
+  ///
+  /// Returns whether anything changed. Each download looks back a little
+  /// and sees the newest rows again; those are left alone and do not count
+  /// as news, or every download would refresh the screen and start another.
+  Future<bool> _write(Transaction txn, String table, Map<String, Object?> row) async {
+    final existing = await txn.query(table, where: 'id = ?', whereArgs: [row['id']]);
+    if (existing.isEmpty) {
+      await txn.insert(table, row);
+      return true;
+    }
+    final old = existing.first;
+    if (row.entries.every((e) => old[e.key] == e.value)) return false;
+    await txn.update(table, row, where: 'id = ?', whereArgs: [row['id']]);
+    return true;
   }
 
   // ---------------------------------------------------------------- helpers
