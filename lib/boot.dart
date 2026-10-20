@@ -14,6 +14,8 @@ import 'core/theme/app_theme.dart';
 import 'data/db/app_database.dart';
 import 'data/repositories/ledger_repository.dart';
 import 'services/cloud_sync.dart';
+import 'services/notifier.dart';
+import 'services/push.dart';
 import 'state/ledger_controller.dart';
 import 'state/settings_controller.dart';
 import 'ui/navigation/app_menu.dart';
@@ -110,6 +112,10 @@ class _BootAppState extends State<BootApp> {
       await _run(_dates, () => initializeDateFormatting('en'));
       // Reads the saved session (no network), or on the web finishes a
       // Google sign-in the page was just sent back from.
+      if (widget.cloud) {
+        await Push.initialize();
+        unawaited(Notifier.prepare());
+      }
       if (widget.cloud && CloudConfig.enabled) {
         await _run(
           _signIn,

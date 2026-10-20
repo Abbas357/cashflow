@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Firebase config for push (download from the Firebase console). Builds
+# work without it; the repo is public, so it stays on the build machine.
+app/google-services.json

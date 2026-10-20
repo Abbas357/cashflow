@@ -194,10 +194,7 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
                                     IconButton(
                                       tooltip: 'Share',
                                       icon: const Icon(Icons.person_add_alt_outlined),
-                                      onPressed: () => openAdaptive(
-                                        context,
-                                        SharingPage(account: a),
-                                      ),
+                                      onPressed: () => openSharing(context, a),
                                     ),
                                     IconButton(
                                       tooltip: 'Rename',

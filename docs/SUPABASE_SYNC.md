@@ -70,13 +70,15 @@ edits stay in the entry's history with their before and after values.
 ## Turning it on
 
 Steps 1, 2 and 6 are done: the project is **cashflow**
-(`arkeaalomelhupqrkfec`, Mumbai), all four migrations are applied, and
+(`arkeaalomelhupqrkfec`, Mumbai), all five migrations and the notify-changes function are in place, and
 the app points at it.
 
 1. **Create a Supabase project** at https://supabase.com (free tier is fine).
 2. **Run the migrations** in order, in the SQL editor (or `supabase db push`):
    `0001_init.sql`, `0002_google_sync.sql`, `0003_harden_functions.sql`,
-   `0004_share_by_email_and_qr.sql`.
+   `0004_share_by_email_and_qr.sql`, `0005_push_devices.sql`. Deploy
+   `supabase/functions/notify-changes` (with JWT verification off: it
+   checks the caller itself).
 3. **Google OAuth client.** In Google Cloud Console, APIs and Services,
    Credentials: create an OAuth client ID of type **Web application**.
    Authorised redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
@@ -126,13 +128,40 @@ accepted, their role, and how many entries they made.
 
 ## Notifications
 
-When a sync brings a change someone else made (added, edited or deleted an
-entry), the app shows a notification on Android or in the browser, and the
-**bell** next to the light/dark switch counts it as unread until opened or
-**Mark all read**. These come from the app itself, so they appear while it
-is open or still running in the background. Notifications to a closed app
-need Firebase Cloud Messaging and a server function that sends them; that
-is a later step.
+The **bell** next to the light/dark switch counts changes other people
+made (added, edited or deleted an entry) as unread until opened or **Mark
+all read**.
+
+**Android: Firebase push, as in the HRM app.** After uploading entry
+history to a shared account, the app calls the `notify-changes` Edge
+Function (`supabase/functions/notify-changes`) with the ids. It pushes
+"Abbas added Cash Out 500: Milk" through Firebase Cloud Messaging to every
+other active member's phones (`push_devices`, migration
+`0005_push_devices.sql`). Android shows it even when Cash Flow is closed;
+tapping it opens the account. Each phone registers its Firebase token after
+Google sign-in and removes it on sign-out or when notifications are turned
+off in Settings.
+
+**Web:** the browser shows a notification when a sync brings someone
+else's change, while the page is open.
+
+### Turning on Firebase push
+
+1. **Firebase project.** At https://console.firebase.google.com, add a
+   project (for example "Cash Flow"; Google Analytics is not needed).
+2. **Android apps.** In the project, Add app, Android, twice:
+   `com.finance.cash_flow` (Cash Flow) and `com.finance.cash_flow.dev`
+   (Cash Flow Dev). After the second one, download `google-services.json`
+   (it covers both) into `android/app/`. Builds apply the Google services
+   plugin only when that file is there. It is git-ignored (the repo is
+   public), so keep a copy with the signing key.
+3. **Service account key.** Project settings, Service accounts, Generate new
+   private key. Keep the downloaded JSON private.
+4. **Give it to the Edge Function.** Supabase dashboard, Edge Functions,
+   Secrets: add `FIREBASE_SERVICE_ACCOUNT` with the whole JSON file as the
+   value. Then delete the downloaded file.
+5. **Rebuild the APK** (`dart tool/build.dart`) and install it on both
+   phones.
 
 ## Web updates
 

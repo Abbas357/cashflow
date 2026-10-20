@@ -8,6 +8,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Push notifications (Firebase) need app/google-services.json, downloaded
+// from the Firebase console. Without it the app builds and runs as before,
+// with notifications only while it is open.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Release signing. android/key.properties and the keystore it points to are
 // git-ignored; keep backups of both. Every update must be signed with the
 // same key, or phones refuse to install it over the old version.

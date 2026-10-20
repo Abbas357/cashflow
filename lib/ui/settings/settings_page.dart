@@ -157,7 +157,9 @@ class SettingsPage extends StatelessWidget {
                   subtitle: const Text('When someone you share with adds, edits or deletes an entry'),
                   value: s.notifyChanges,
                   onChanged: (v) async {
+                    final cloud = context.read<CloudSync?>();
                     await s.setNotifyChanges(v);
+                    await cloud?.updatePush();
                     if (v && !await Notifier.requestPermission() && context.mounted) {
                       toast(context, 'Allow notifications for Cash Flow in your phone or browser settings.');
                     }

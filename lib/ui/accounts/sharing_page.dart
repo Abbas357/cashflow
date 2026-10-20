@@ -12,6 +12,51 @@ import '../sharing/invite_widgets.dart';
 import '../widgets/common.dart';
 import '../widgets/google_button.dart';
 
+/// Opens [account]'s share screen, or, when not signed in, says that
+/// sharing needs a Google sign-in and offers it.
+Future<void> openSharing(BuildContext context, Account account) async {
+  final cloud = context.read<CloudSync?>();
+  if (cloud != null && cloud.signedIn) {
+    await openAdaptive(context, SharingPage(account: account));
+    return;
+  }
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      final t = Theme.of(ctx).textTheme;
+      return AlertDialog(
+        icon: const Icon(Icons.group_add_outlined),
+        title: const Text('Connect with Google to share'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'You are offline: your books are saved only on this device. To share '
+                '"${account.name}", sign in with Google. Your books are then saved online, '
+                'so they are not lost, and the people you share with see every entry.',
+                style: t.bodyMedium,
+              ),
+              if (cloud != null) ...[
+                const SizedBox(height: 16),
+                GoogleButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    signInWithGoogle(context, cloud);
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Not now'))],
+      );
+    },
+  );
+}
+
 /// Who can see an account, and what they may do.
 ///
 /// People sign in with Google, so they are invited by their Gmail address

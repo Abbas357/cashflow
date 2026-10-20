@@ -32,6 +32,7 @@ class _CashFlowAppState extends State<CashFlowApp> {
     super.initState();
     _updates.start();
     _cloud?.addListener(_offerPendingJoin);
+    _cloud?.onOpenAccount = _openAccount;
     _ledger.addListener(_queueMirror);
     _router.routerDelegate.addListener(_queueMirror);
     _queueMirror();
@@ -41,6 +42,7 @@ class _CashFlowAppState extends State<CashFlowApp> {
   void dispose() {
     _updates.dispose();
     _cloud?.removeListener(_offerPendingJoin);
+    _cloud?.onOpenAccount = null;
     _ledger.removeListener(_queueMirror);
     _router.routerDelegate.removeListener(_queueMirror);
     _router.dispose();
@@ -74,6 +76,13 @@ class _CashFlowAppState extends State<CashFlowApp> {
     final context = _router.routerDelegate.navigatorKey.currentContext;
     if (context == null) return;
     Router.neglect(context, () => _router.go(want));
+  }
+
+  /// A tapped push: the account it is about.
+  Future<void> _openAccount(String id) async {
+    final account = _ledger.accounts.where((a) => a.id == id).firstOrNull;
+    if (account != null) await _ledger.selectAccount(account);
+    _router.go(Routes.account(id));
   }
 
   /// An invitation code scanned before signing in opens again once they

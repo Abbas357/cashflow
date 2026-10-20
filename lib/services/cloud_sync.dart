@@ -12,6 +12,7 @@ import '../data/models/models.dart';
 import '../state/ledger_controller.dart';
 import '../state/settings_controller.dart';
 import 'notifier.dart';
+import 'push.dart';
 
 enum SyncState {
   /// No cloud project in this build.
@@ -74,6 +75,32 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   /// Changes other people made, brought by the last download, still to
   /// be announced.
   final _news = <Map<String, dynamic>>[];
+
+  /// Firebase pushes for this phone (Android), once signed in.
+  late final Push _pushes = Push(_client);
+
+  void Function(String accountId)? _onOpenAccount;
+  String? _openPending;
+
+  /// Opens the account a tapped push is about. Set by the app once it is
+  /// up; a push that opened the app before that waits for it.
+  set onOpenAccount(void Function(String accountId)? open) {
+    _onOpenAccount = open;
+    final waiting = _openPending;
+    if (open != null && waiting != null) {
+      _openPending = null;
+      open(waiting);
+    }
+  }
+
+  void _openFromPush(String accountId) {
+    final open = _onOpenAccount;
+    if (open == null) {
+      _openPending = accountId;
+    } else {
+      open(accountId);
+    }
+  }
 
   StreamSubscription<AuthState>? _auth;
   RealtimeChannel? _channel;
@@ -159,6 +186,8 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await sync();
     } catch (_) {}
+    // While still signed in, so the server forgets this phone.
+    await _pushes.stop();
     try {
       await _client.auth.signOut(scope: SignOutScope.local);
     } catch (_) {}
@@ -177,6 +206,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     if (u?.id == _uid) return;
     _uid = u?.id;
     if (u == null) {
+      unawaited(_pushes.stop());
       _periodic?.cancel();
       await _channel?.unsubscribe();
       _channel = null;
@@ -189,6 +219,25 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     _periodic?.cancel();
     _periodic = Timer.periodic(_checkEvery, (_) => _schedule(Duration.zero));
     await sync();
+    await updatePush();
+  }
+
+  /// Registers this phone for pushes when signed in with notifications on
+  /// (Settings), and stops them otherwise.
+  Future<void> updatePush() async {
+    if (!Push.available) return;
+    if (signedIn && settings.notifyChanges) {
+      await _pushes.start(
+        // Android shows nothing for a push while the app is open.
+        onArrived: (title, body) {
+          unawaited(Notifier.show(title, body));
+          _schedule(Duration.zero);
+        },
+        onOpened: _openFromPush,
+      );
+    } else {
+      await _pushes.stop();
+    }
   }
 
   /// Ties the device's books to [u] the first time they sign in here.
@@ -358,6 +407,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
             for (final r in rows) ?_toCloud(table, r, owned),
           ];
           await _upload(table, payload);
+          if (table == 'entry_changes') await _pushToOthers([for (final r in rows) r['id'] as String]);
         }
         // Accounts and entries are only ever soft-deleted in the cloud (so
         // the deletion syncs too); a hard delete here is local only. People
@@ -705,13 +755,36 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     await settings.setUnreadChanges({...settings.unreadChanges, for (final n in _news) n['id'] as String});
   }
 
+  /// Asks the server to push the changes just uploaded to the other people
+  /// in their accounts. Only changes in accounts shared with someone who
+  /// has accepted go. A failure only costs the push: the change is in.
+  Future<void> _pushToOthers(List<String> changeIds) async {
+    if (changeIds.isEmpty) return;
+    final shared = await _db.rawQuery(
+      '''SELECT c.id FROM entry_changes c
+         WHERE c.id IN (${_marks(changeIds.length)})
+           AND EXISTS (SELECT 1 FROM account_members m
+                       WHERE m.account_id = c.account_id AND m.role != 'owner' AND m.status = 'active')''',
+      changeIds,
+    );
+    if (shared.isEmpty) return;
+    try {
+      await _client.functions.invoke('notify-changes', body: {
+        'change_ids': [for (final r in shared) r['id']],
+      });
+    } catch (e) {
+      debugPrint('Cash Flow: could not ask for pushes: $e');
+    }
+  }
+
   /// Changes other people made, as notifications: one per change, or one
-  /// per account when several came at once.
+  /// per account when several came at once. On a phone with Firebase,
+  /// the server's push already said it.
   Future<void> _announce() async {
     if (_news.isEmpty) return;
     final news = [..._news];
     _news.clear();
-    if (!settings.notifyChanges) return;
+    if (!settings.notifyChanges || _pushes.active) return;
     final names = {for (final a in ledger.accounts) a.id: a.name};
     final byAccount = <String, List<Map<String, dynamic>>>{};
     for (final n in news) {

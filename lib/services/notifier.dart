@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Notifications for changes other people make to shared accounts, on
 /// Android and in the browser.
 ///
-/// They come from the app itself when a sync brings someone else's entry,
-/// so they show while the app is open or still running in the background,
-/// not after Android has closed it. That would need a push service (Firebase
-/// Cloud Messaging) sending from the server.
+/// On the web they come from the app itself when a sync brings someone
+/// else's entry, so they show while the page is open. On Android, Firebase
+/// pushes them from the server (`Push`), even with the app closed; this
+/// shows the ones arriving while it is open, in the same channel.
 class Notifier {
   Notifier._();
 
@@ -21,10 +22,21 @@ class Notifier {
     try {
       final ok = await _plugin.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          android: AndroidInitializationSettings('@drawable/ic_notification'),
           web: WebInitializationSettings(),
         ),
       );
+      // The channel Firebase pushes arrive in too (AndroidManifest.xml).
+      await _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(
+            const AndroidNotificationChannel(
+              channelId,
+              'Changes by others',
+              description: _channelDescription,
+              importance: Importance.high,
+            ),
+          );
       return ok ?? false;
     } catch (_) {
       return false;
@@ -51,6 +63,13 @@ class Notifier {
     }
   }
 
+  static const channelId = 'shared_changes';
+  static const _channelDescription = 'When someone you share an account with adds, edits or deletes an entry.';
+
+  /// Creates the notification channel at startup, so pushes that arrive
+  /// before anything else is shown land in it.
+  static Future<void> prepare() => _init();
+
   static int _next = 1;
 
   static Future<void> show(String title, String body) async {
@@ -62,9 +81,12 @@ class Notifier {
         body: body,
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
-            'shared_changes',
+            channelId,
             'Changes by others',
-            channelDescription: 'When someone you share an account with adds, edits or deletes an entry.',
+            channelDescription: _channelDescription,
+            importance: Importance.high,
+            priority: Priority.high,
+            color: Color(0xFF006B3C),
           ),
           web: WebNotificationDetails(),
         ),

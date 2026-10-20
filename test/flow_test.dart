@@ -92,4 +92,41 @@ void main() {
       expect(find.textContaining('Edited by Ali'), findsOneWidget);
     });
   }
+
+  testWidgets('on a phone, Save stays above the keyboard', (tester) async {
+    tester.view.physicalSize = const Size(412, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final (settings, ledger) = (await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({'theme_mode': 'light'});
+      final s = SettingsController(await SharedPreferences.getInstance());
+      final db = await AppDatabase.openWith(databaseFactoryFfi, inMemoryDatabasePath);
+      final l = LedgerController(LedgerRepository(db, Actor(s.userId, s.displayName)), s);
+      await l.load();
+      return (s, l);
+    }))!;
+    addTearDown(() => tester.runAsync(() => ledger.repo.db.close()));
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: settings),
+          ChangeNotifierProvider.value(value: ledger),
+        ],
+        child: const CashFlowApp(),
+      ),
+    );
+    await settle(tester);
+    await tester.tap(find.text('Cash Out'));
+    await settle(tester);
+
+    // A 300 px keyboard comes up.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+
+    final keyboardTop = 900 - 300;
+    expect(tester.getRect(find.text('Save & exit')).bottom, lessThanOrEqualTo(keyboardTop));
+    expect(tester.getRect(find.text('Save & continue')).bottom, lessThanOrEqualTo(keyboardTop));
+  });
 }

@@ -136,7 +136,7 @@ class SummaryPanel extends StatelessWidget {
               title: const Text('Sharing'),
               subtitle: Text(acc.isShared ? 'Shared with others' : 'Only you'),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => openAdaptive(context, SharingPage(account: acc)),
+              onTap: () => openSharing(context, acc),
             ),
           ),
         ],

@@ -539,9 +539,11 @@ class _EntryFormPageState extends State<EntryFormPage> {
             ],
           ],
         ),
+        // Rides on top of the keyboard while it is open, so Save stays in
+        // reach; a bottom bar alone stays put behind it.
         bottomNavigationBar: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 12 + MediaQuery.viewInsetsOf(context).bottom),
             child: _editing
                 ? FilledButton(
                     onPressed: _saving ? null : () => _save(exit: true),

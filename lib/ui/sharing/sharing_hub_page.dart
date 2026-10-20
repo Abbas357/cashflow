@@ -195,7 +195,7 @@ class _AccountPeople extends StatelessWidget {
               children: [
                 Expanded(child: Text(shared.account.name, style: t.titleSmall)),
                 TextButton.icon(
-                  onPressed: () => openAdaptive(context, SharingPage(account: shared.account)),
+                  onPressed: () => openSharing(context, shared.account),
                   icon: const Icon(Icons.person_add_alt_outlined, size: 18),
                   label: const Text('Manage'),
                 ),

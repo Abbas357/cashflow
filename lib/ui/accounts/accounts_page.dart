@@ -132,7 +132,7 @@ class _AccountsPageState extends State<AccountsPage> {
                               ledger.selectAccount(a);
                               context.go(Routes.home);
                             case 'share':
-                              openAdaptive(context, SharingPage(account: a));
+                              openSharing(context, a);
                             case 'rename':
                               _rename(a);
                             case 'delete':
