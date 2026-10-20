@@ -54,7 +54,7 @@ class ProfileFooter extends StatelessWidget {
             Tooltip(
               message: 'Continue with Google',
               child: IconButton(
-                onPressed: () => _signIn(context, cloud),
+                onPressed: () => signInWithGoogle(context, cloud),
                 icon: const GoogleLogo(size: 20),
               ),
             ),
@@ -96,7 +96,7 @@ class ProfileFooter extends StatelessWidget {
         who,
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
-          child: GoogleButton(onPressed: () => _signIn(context, cloud)),
+          child: GoogleButton(onPressed: () => signInWithGoogle(context, cloud)),
         ),
       ],
     );
@@ -111,22 +111,6 @@ class ProfileFooter extends StatelessWidget {
     SyncState.failed => 'Sync paused, tap for details',
     _ => c.pending > 0 ? '${_changes(c.pending)} to sync' : 'Synced to the cloud',
   };
-
-  Future<void> _signIn(BuildContext context, CloudSync cloud) async {
-    if (!cloud.available) {
-      toast(context, 'Cloud sign-in is not set up in this build yet');
-      return;
-    }
-    if (!CloudConfig.signInSupported) {
-      toast(context, 'Sign in on the web or the Android app. This desktop app keeps its books on this device.');
-      return;
-    }
-    try {
-      await cloud.signIn();
-    } catch (_) {
-      if (context.mounted) toast(context, 'Could not open Google sign-in. Check the connection and try again.');
-    }
-  }
 
   Future<void> _accountMenu(BuildContext context, CloudSync cloud) async {
     final box = context.findRenderObject()! as RenderBox;
@@ -240,5 +224,22 @@ class _SyncIcon extends StatelessWidget {
         _ => Icon(Icons.cloud_done_outlined, size: 18, color: Theme.of(context).colorScheme.primary),
       },
     );
+  }
+}
+
+/// Starts Google sign-in, or says why it cannot here.
+Future<void> signInWithGoogle(BuildContext context, CloudSync cloud) async {
+  if (!cloud.available) {
+    toast(context, 'Cloud sign-in is not set up in this build yet');
+    return;
+  }
+  if (!CloudConfig.signInSupported) {
+    toast(context, 'Sign in on the web or the Android app. This desktop app keeps its books on this device.');
+    return;
+  }
+  try {
+    await cloud.signIn();
+  } catch (_) {
+    if (context.mounted) toast(context, 'Could not open Google sign-in. Check the connection and try again.');
   }
 }
