@@ -15,7 +15,12 @@ Run these from this folder, in any terminal.
 | `dart tool/dev.dart R5CT51XZF3H` | The same, on a phone you name (the id from `adb devices`). |
 | `dart tool/build.dart` | Builds the signed production APK and saves it as `build/app/outputs/flutter-apk/CashFlow-v<version>.apk`, next to `app-release.apk`. |
 | `dart tool/build.dart dev` | Builds the dev APK as `build/app/outputs/flutter-apk/CashFlow-Dev-v<version>.apk`, to copy to a phone without a cable. |
-| `flutter run -d chrome` | Runs the web app in Chrome. |
+| `adb install -r build/app/outputs/flutter-apk/CashFlow-v<version>.apk` | Installs the production APK you already built on the connected phone, no rebuild. `-r` updates it in place and keeps its data. |
+| `adb install -r build/app/outputs/flutter-apk/CashFlow-Dev-v<version>.apk` | The same for the dev APK (**Cash Flow Dev**). |
+| `flutter run -d chrome` | Runs the web app live in Chrome, with hot reload. |
+| `flutter run -d web-server --web-port 8080` | The same, for any browser: open http://localhost:8080. |
+| `flutter build web --release --no-web-resources-cdn` then `python tool/serve_web.py` | Builds the release web app and serves it on http://127.0.0.1:8080. See [Open the web app](#open-the-web-app). |
+| `python tool/serve_web.py` | Opens the web app you already built (in `build/web`) on http://127.0.0.1:8080, no rebuild. |
 | `flutter test` | Runs the tests. |
 
 - The dev build installs as **Cash Flow Dev** (`com.finance.cash_flow.dev`)
@@ -87,9 +92,51 @@ test/          unit, routing, sidebar and flow tests, screenshot harness
 
 ## Web
 
-Build with `flutter build web --release --no-web-resources-cdn` (everything
-served from the app's own host, so it works offline), then preview with
-`python tool/serve_web.py` on http://127.0.0.1:8080.
+### Open the web app
+
+**Live, while working on it** (hot reload, debug build):
+
+```
+flutter run -d chrome
+```
+
+Chrome opens on its own. To use another browser, start a plain server
+instead and open the address it prints:
+
+```
+flutter run -d web-server --web-port 8080
+```
+
+then go to http://localhost:8080. In the terminal, `r` reloads after a code
+change, `R` restarts, `q` stops the server.
+
+**The release build, as it will be deployed:**
+
+```
+flutter build web --release --no-web-resources-cdn
+python tool/serve_web.py
+```
+
+then go to http://127.0.0.1:8080. `--no-web-resources-cdn` serves
+everything from the app's own host, so it works offline. For another port,
+`python tool/serve_web.py 9000`. Press `Ctrl+C` to stop. After changing
+code, run the build again and refresh the page (no restart needed).
+
+**A release build you already made:** skip the build and just run
+
+```
+python tool/serve_web.py
+```
+
+then go to http://127.0.0.1:8080. It serves whatever is in `build/web`
+from the last build. Keep the terminal open while you use it. Opening
+`build/web/index.html` directly from the folder does not work.
+
+`serve_web.py` listens on this computer only. To open the app from a phone
+on the same Wi-Fi, use the live server with
+`flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080` and go
+to `http://<this computer's IP>:8080` (find it with `ipconfig`). Windows may
+ask to allow it through the firewall.
 
 **Addresses.** Every page has a real address (`/insights`, `/reports`,
 `/settings`, ...). The ledger lives at `/account/<uuid>`, with the Cash In
