@@ -2,10 +2,14 @@
 
 An offline-first cash book for Android, iOS, Windows, macOS, Linux and the web.
 Record money in and money out across separate accounts, see where it goes,
-print reports, and (once cloud sync is switched on) share accounts with people
-from your contacts.
+print reports, and sign in with Google to keep the same books on every phone
+and browser.
 
 ## Running and building
+
+**Live web app:** https://abbas357.github.io/cashflow/ (rebuilt and published
+by `.github/workflows/pages.yml` on every push to `main`).
+
 
 Run these from this folder, in any terminal.
 
@@ -53,7 +57,7 @@ Run these from this folder, in any terminal.
 * **Big Cash In / Cash Out buttons** with totals for the period on screen.
 * **Entry form**: amount with built-in calculator (type `250+120` or use the
   keypad), note suggestions from earlier entries, receipt photo, date
-  stepper and time. Save and continue for quick entry.
+  stepper and time. Save & continue for quick entry.
 * **History on every entry**: each add, edit and delete is kept with the old
   and new values. The Activity log lists them all.
 * **Accounts**: switch, search, add, rename, reorder and delete.
@@ -65,9 +69,13 @@ Run these from this folder, in any terminal.
 * **Sharing**: share an account with contacts as Can edit or View only. The
   person accepts the invitation by mobile number. Invites are saved locally
   until cloud sync is enabled.
+* **Sign in with Google** (web and Android, no passwords): the books sync to
+  Supabase in the background and appear on every device signed in to the
+  same Google account. Works offline; changes upload when back online.
 * **Backup and restore** to a JSON file.
-* **Light and dark** themes (toggle on the main screen), lakh or million
-  number grouping, any currency symbol.
+* **Light and dark** themes (toggle on the main screen). Over 60 currencies
+  to pick from, each with its usual number grouping (4,78,940 / 478,940 /
+  478.940 / 478 940 / 478'940), which can be changed on its own.
 * **Responsive**: phone layout with a drawer and menu search. On desktop and
   web, a sidebar that stays beside every page: drag its edge to resize,
   fold it to icons (`Ctrl+B`), search everything (`Ctrl+K`). Wide screens
@@ -78,14 +86,14 @@ Run these from this folder, in any terminal.
 
 ```
 lib/
-  core/        theme, formatting, calculator, breakpoints, routing
+  core/        theme, formatting, currencies, cloud config, routing
   data/        SQLite schema, models, LedgerRepository
   state/       settings, ledger state, periods, analytics
-  services/    PDF and CSV reports
+  services/    cloud sync and Google sign-in, PDF and CSV reports
   ui/          screens (home, entry, accounts, reports, settings, help)
 assets/brand/  the app icon and its generated variants
-supabase/      cloud schema with RLS, history trigger, contact matching
-docs/          SUPABASE_SYNC.md: the sync and sharing plan
+supabase/      cloud schema with RLS, sync stamps, contact matching
+docs/          SUPABASE_SYNC.md: how sync works and how to turn it on
 tool/          build.dart, dev.dart, make_icons.dart, serve_web.py
 test/          unit, routing, sidebar and flow tests, screenshot harness
 ```
@@ -191,7 +199,8 @@ renders the main screen (phone and desktop, light and dark) and Insights to PNG.
 
 ## Cloud sync
 
-The app is built so that sync can be added without reshaping data. See
-[docs/SUPABASE_SYNC.md](docs/SUPABASE_SYNC.md) for the plan: Supabase for
-Postgres, phone sign-in and row-level security, and PowerSync as the
-offline sync connector.
+Sign in with Google and sync through Supabase. It stays off until a
+Supabase project is set in `lib/core/config/cloud_config.dart`. See
+[docs/SUPABASE_SYNC.md](docs/SUPABASE_SYNC.md) for how it works and the
+setup steps (Supabase project, migrations, Google OAuth client, redirect
+URLs).

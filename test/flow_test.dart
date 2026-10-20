@@ -30,7 +30,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       final (settings, ledger) = (await tester.runAsync(() async {
-        SharedPreferences.setMockInitialValues({'theme_mode': 'light', 'profile_name': 'Ali'});
+        SharedPreferences.setMockInitialValues({'theme_mode': 'light', 'profile_name': 'Ali', 'currency_code': 'PKR'});
         final s = SettingsController(await SharedPreferences.getInstance());
         final db = await AppDatabase.openWith(databaseFactoryFfi, inMemoryDatabasePath);
         final l = LedgerController(LedgerRepository(db, Actor(s.userId, s.displayName)), s);
@@ -59,7 +59,7 @@ void main() {
       await settle(tester);
       await tester.enterText(find.byType(TextField).at(0), '60+40');
       await tester.enterText(find.byType(TextField).at(1), 'Milk');
-      await tester.tap(find.text('Save and exit'));
+      await tester.tap(find.text('Save & exit'));
       await settle(tester);
 
       expect(ledger.allEntries.single.amount, 100);

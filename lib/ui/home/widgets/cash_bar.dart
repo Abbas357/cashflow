@@ -136,11 +136,11 @@ class _BigButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(60),
+          minimumSize: const Size.fromHeight(50),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
-        icon: Icon(icon, size: 24),
+        icon: Icon(icon, size: 22),
         label: Text(label),
       ),
     );

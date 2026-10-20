@@ -1,126 +1,111 @@
-# Cloud sync and sharing plan
+# Cloud sync and Google sign-in
 
 Cash Flow is **offline-first**. Every read and write goes to the SQLite
-database on the device. The cloud has one job: copy changes in the
-background, so people who share an account see each other's entries and
-edits, including the value an edit replaced.
+database on the device. Signing in with Google adds a copy in Supabase that
+stays in step in the background, so the same books appear on every phone
+and browser the person signs in on.
 
 ```
- Phone / Desktop / Web                       Supabase
- +---------------------------+              +-----------------------------+
- | UI  ->  LedgerRepository  |              | Postgres                    |
- |            |  SQL         |   upload     |  accounts, entries,         |
- |            v              | -----------> |  account_members,           |
- |   local SQLite (always)   |              |  entry_changes (trigger)    |
- |            ^              | <----------- |  RLS: owner/editor/viewer   |
- |            | PowerSync    |   stream     | Auth: phone number + OTP    |
- +---------------------------+              +-----------------------------+
+ Phone / Desktop / Web                            Supabase
+ +--------------------------------+              +------------------------------+
+ | UI  ->  LedgerRepository       |              | Auth: Google                 |
+ |            |  SQL              |   upsert     | Postgres                     |
+ |            v                   | -----------> |  accounts, entries,          |
+ |   local SQLite (always)        |              |  account_members,            |
+ |     triggers -> sync_outbox    |   select     |  entry_changes               |
+ |            ^                   | <----------- |  RLS: owner/editor/viewer    |
+ |            |  CloudSync        |   realtime   |  updated_at stamped on write |
+ +--------------------------------+ <- - - - - - +------------------------------+
 ```
 
-## Why PowerSync as the connector
+## Signing in
 
-* The app already speaks SQL to SQLite. PowerSync keeps a SQLite database on
-  the device and syncs it with Supabase Postgres, so `LedgerRepository`
-  keeps its queries. Only the code that opens the database changes.
-* Writes are queued while offline and uploaded when the network returns.
-* Supabase publishes an official PowerSync integration and a Flutter
-  `SupabaseConnector` template.
-* A local Supabase (the CLI with Docker) is still useful for development.
-  It is not what users connect to.
+* **Web:** "Continue with Google" at the bottom left of the sidebar sends the
+  tab to Google's account chooser and back, like Claude's own sign-in.
+  Supabase finishes the sign-in on load (`Supabase.initialize` in
+  `lib/boot.dart`) and clears `?code=` from the address.
+* **Android:** the same button at the bottom of the drawer opens Google in
+  the browser; it returns to the app by the deep link
+  `com.finance.cashflow://login-callback` (`com.finance.cashflow.dev://...`
+  for the dev app), declared in `AndroidManifest.xml`.
+* **Desktop apps** have no redirect to come back to, so they stay offline
+  and say so. Use the web app on a computer.
+* There are no passwords. Supabase keeps the session on the device and
+  refreshes it.
 
-## What is already in place
+## How sync works (`lib/services/cloud_sync.dart`)
 
-| Ready now | Where |
-|---|---|
-| UUID text ids, UTC ISO timestamps, soft deletes, `version` | `lib/data/db/app_database.dart` |
-| One class for every read and write | `lib/data/repositories/ledger_repository.dart` |
-| Change history with before/after values | `entry_changes` table, `EntryChange` model |
-| Roles: owner, editor, viewer | `AccountRole`, enforced in the UI |
-| Share with contacts, invites saved as pending | `SharingPage`, `contact_picker.dart`, `account_members` |
-| Phone number normalisation (`+923001234567`) | `normalizePhone()` in `models.dart` |
-| Cloud schema, RLS, history trigger, contact matching | `supabase/migrations/0001_init.sql` |
+1. **Outbox.** Triggers on the four tables (`lib/data/db/app_database.dart`,
+   schema version 2) record every insert, update and delete in
+   `sync_outbox`, one row per changed record. Changes made offline, or
+   before signing in, wait there.
+2. **First sign-in on a device.** Rows written so far carry a random local
+   id as their author; it becomes the Google user's id. If the cloud already
+   has books and this device only has the empty starter "Personal" account,
+   that account is dropped instead of uploaded, so it does not appear twice.
+3. **Upload.** Waiting rows go up with `upsert`, parents first (accounts,
+   members, entries, history). A row the cloud refuses for good (for
+   example an edit to an account shared as view only) is counted and
+   skipped so it cannot block the rest; network errors leave everything
+   queued for the next try.
+4. **Download.** For each table, rows whose server `updated_at` is newer
+   than the last download come down a page at a time, ordered by
+   `(updated_at, id)`. A row with a newer change still waiting on the
+   device is left alone; that change wins and comes back after uploading.
+   Members are few and come down in full, so removals show too.
+5. **When.** After each change on the device (1.2 s later), on sign-in, when
+   the app comes back to the front, every two minutes, and at once when
+   Supabase Realtime reports a change from another device.
+6. **Sign out** uploads what it can, then removes the device's copy. The
+   books come back on the next sign-in.
 
-## Sharing through contacts
+History (`entry_changes`) is written by the device at the moment of each
+change, offline or not, and uploaded like everything else. The server
+trigger from `0001_init.sql` is dropped in `0002_google_sync.sql`: it would
+have stamped the time of upload and logged each change twice.
 
-**Identity.** The mobile number is how a person is identified and found
-when sharing. Each number belongs to one user (`profiles.phone` is
-unique) and an account can hold one invite per number. Every table still
-uses a UUID primary key: numbers change hands and get recycled, and a
-UUID keeps a person's history intact when that happens.
+Two people editing the same entry offline: the last upload wins, and both
+edits stay in the entry's history with their before and after values.
 
-1. Each person signs in once with their mobile number (Supabase phone OTP).
-   A trigger copies the verified number into `profiles.phone` and stores
-   `sha256(phone)` in `profiles.phone_hash`.
-2. In **Share account**, the owner picks people from the phone's contacts
-   (or types a number on desktop) and chooses **Can edit** or **View only**.
-3. To show which contacts already use the app, the device sends **hashes**
-   of its contacts' numbers to `match_contacts()`. Raw numbers never leave
-   the phone.
-4. Each share is an `account_members` row with that number, the role, and
-   status `pending`. Nothing about the account is visible to the invitee
-   yet.
-5. The invited person signs in with that number and sees the invitation
-   (`my_invitations()`: account name, who shared it, the role). They
-   **accept** (`accept_invitation`) or **decline** (`decline_invitation`).
-6. On accept, the row becomes `active` with their user id. From then on
-   the account, its entries and the full change history sync to their
-   devices, and every later change arrives in the background.
-7. RLS lets active members read an account, its entries and its history.
-   Only owners and editors can write entries. Only the owner invites,
-   changes roles or removes people.
+## Turning it on
 
-## History of changes
+Steps 1, 2 and 6 are done: the project is **cashflow**
+(`arkeaalomelhupqrkfec`, Mumbai), all three migrations are applied, and
+the app points at it.
 
-The server trigger `log_entry_change()` writes `entry_changes` for every
-insert, update and soft delete, with `old_data` and `new_data` as JSON.
-Members download it like any other table, and the app already renders it
-("Milk: Rs 100 -> Rs 120, edited by Ali").
+1. **Create a Supabase project** at https://supabase.com (free tier is fine).
+2. **Run the migrations** in order, in the SQL editor (or `supabase db push`):
+   `0001_init.sql`, `0002_google_sync.sql`, `0003_harden_functions.sql`.
+3. **Google OAuth client.** In Google Cloud Console, APIs and Services,
+   Credentials: create an OAuth client ID of type **Web application**.
+   Authorised redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
+4. **Enable Google in Supabase.** Authentication, Sign In / Providers,
+   Google: paste the client ID and secret.
+5. **Redirect URLs.** Authentication, URL Configuration, Redirect URLs, add:
+   * `http://localhost:*/**` and `http://127.0.0.1:*/**` (local web, any port)
+   * `https://abbas357.github.io/cashflow/**` (GitHub Pages)
+   * `com.finance.cashflow://login-callback`
+   * `com.finance.cashflow.dev://login-callback`
 
-On the device the repository also logs changes, so history works offline.
-With sync on, mark `entry_changes` as **download-only** in the PowerSync
-schema and skip it in `uploadData`, so the server trigger is the single
-source. Local rows are replaced by the server's copies when they arrive.
+   Set Site URL to `https://abbas357.github.io/cashflow/`.
+6. **Point the app at it.** Paste the Project URL and the publishable (anon)
+   key from Project Settings, API into `lib/core/config/cloud_config.dart`,
+   or pass them when building:
+   `--dart-define=SUPABASE_URL=https://<ref>.supabase.co --dart-define=SUPABASE_KEY=<key>`.
 
-## Turning it on: steps
+Until step 6, the app runs exactly as before, fully offline; the Google
+button explains that sign-in is not set up in that build.
 
-1. **Supabase project.** Create it, enable Phone auth (an SMS provider such
-   as Twilio), then run `supabase/migrations/0001_init.sql`
-   (`supabase db push`).
-2. **PowerSync.** Create an instance connected to the Supabase database.
-   Sync rules, in short:
-   ```yaml
-   bucket_definitions:
-     my_accounts:
-       parameters: >
-         select account_id, role from account_members
-         where user_id = request.user_id() and status = 'active'
-       data:
-         - select * from accounts where id = bucket.account_id
-         - select * from entries where account_id = bucket.account_id
-         - select * from entry_changes where account_id = bucket.account_id
-         - select * from account_members where account_id = bucket.account_id
-   ```
-   The device's `accounts.role` column is filled from the member row (or a
-   view) so the UI keeps reading `account.role`.
-3. **Flutter.** Add `supabase_flutter` and `powersync`. Add a sign-in screen
-   (phone and OTP). Replace `AppDatabase.open()` with a `PowerSyncDatabase`
-   using the same table definitions, and add the `SupabaseConnector` from
-   the PowerSync template (`fetchCredentials` + `uploadData`).
-4. **First sync.** Data created offline before sign-in already has UUIDs.
-   Set `owner_id`, `created_by` and `updated_by` from the local id to the
-   signed-in user id once, then let it upload.
-5. **Receipts.** Upload attachments to a private Storage bucket per
-   account, and store the storage path in `entries.attachment`.
-6. **Contacts.** Hash each normalised contact number with sha256, call
-   `match_contacts`, and mark matching contacts in the picker. Pending
-   invites already saved on the device upload with everything else.
-7. **Invitations screen.** List `my_invitations()` after sign-in (and
-   when a push notification arrives), with Accept and Decline.
+## Sharing
 
-## Conflicts
+Sharing still invites people by **mobile number** (`account_members.phone`,
+`my_invitations()`), as planned in `0001_init.sql`. Google accounts carry an
+email, not a verified number, so invitations will not yet reach the person
+they are for. Matching invites by email (or asking for a number once after
+sign-in) is the next step.
 
-Two people may edit the same entry offline. PowerSync uploads in order and
-the last write wins on the server. Nothing is lost, because the trigger
-records both edits with their before and after values, and both show in
-the entry's history. If stricter rules are needed later, compare the
-`version` column in `uploadData` and ask the user to choose.
+## Receipts
+
+Receipt photos are still stored on the device only. Uploading them to a
+private Storage bucket per account, with the storage path in
+`entries.attachment`, is a later step.

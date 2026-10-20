@@ -129,6 +129,22 @@ class LedgerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Picks up rows that arrived from the cloud without a loading screen,
+  /// staying on the open account while it still exists.
+  Future<void> syncArrived() async {
+    accounts = await repo.accounts();
+    if (accounts.isEmpty) {
+      await repo.createAccount('Personal');
+      accounts = await repo.accounts();
+    }
+    current = accounts.where((a) => a.id == current?.id).firstOrNull ??
+        accounts.where((a) => a.id == settings.lastAccountId).firstOrNull ??
+        accounts.first;
+    await _loadEntries();
+    revision++;
+    notifyListeners();
+  }
+
   // ------------------------------------------------------------- accounts
 
   Future<void> selectAccount(Account a) async {

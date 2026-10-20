@@ -41,6 +41,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["appLabel"] = "Cash Flow"
+        // Google sign-in returns by this deep link (lib/core/config/cloud_config.dart).
+        manifestPlaceholders["authScheme"] = "com.finance.cashflow"
     }
 
     signingConfigs {
@@ -62,6 +64,7 @@ android {
         debug {
             applicationIdSuffix = ".dev"
             manifestPlaceholders["appLabel"] = "Cash Flow Dev"
+            manifestPlaceholders["authScheme"] = "com.finance.cashflow.dev"
         }
         release {
             signingConfig = signingConfigs.findByName("release")

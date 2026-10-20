@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/currencies.dart';
 import '../../core/utils/formatters.dart';
+import '../../services/cloud_sync.dart';
 import '../../state/ledger_controller.dart';
 import '../../state/settings_controller.dart';
 import '../widgets/common.dart';
@@ -16,22 +18,32 @@ class SettingsPage extends StatelessWidget {
       context,
       title: 'Currency symbol',
       initial: s.currency,
-      label: 'For example Rs, PKR, \$, AED. Leave empty for none.',
+      label: 'For example Rs, PKR, \$, €. Leave empty for none.',
     );
     if (v != null) await s.setCurrency(v);
   }
 
   Future<void> _wipe(BuildContext context) async {
     final ledger = context.read<LedgerController>();
+    final synced = context.read<CloudSync?>()?.signedIn ?? false;
     final ok = await confirm(
       context,
       title: 'Delete all data?',
-      message: 'Every account, entry and history record on this device will be erased. '
+      message: 'Every account, entry and history record '
+          '${synced ? 'on this device and in the cloud' : 'on this device'} will be erased. '
           'This cannot be undone.',
       confirmLabel: 'Delete everything',
     );
     if (!ok) return;
-    await ledger.repo.wipe();
+    if (synced) {
+      // Marked deleted rather than erased, so the deletion syncs to the
+      // cloud and every other device signed in.
+      for (final a in ledger.accounts.where((a) => a.role.canManage)) {
+        await ledger.repo.deleteAccount(a.id);
+      }
+    } else {
+      await ledger.repo.wipe();
+    }
     await ledger.reload();
     if (context.mounted) toast(context, 'All data deleted');
   }
@@ -78,23 +90,35 @@ class SettingsPage extends StatelessWidget {
           _Group(
             title: 'Numbers',
             children: [
+              const ListTile(
+                leading: Icon(Icons.payments_outlined),
+                title: Text('Currency'),
+                subtitle: Text('Type to search by name or code'),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _CurrencyPicker(settings: s),
+              ),
               ListTile(
-                leading: const Icon(Icons.payments_outlined),
-                title: const Text('Currency symbol'),
-                subtitle: Text(s.currency.isEmpty ? 'None' : s.currency),
+                leading: const Icon(Icons.sell_outlined),
+                title: const Text('Symbol shown'),
+                subtitle: Text(s.currency.isEmpty ? 'None' : 'Example: ${Fmt.money(478940)}'),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => _currency(context, s),
               ),
               ListTile(
                 leading: const Icon(Icons.format_list_numbered_rounded),
                 title: const Text('Number grouping'),
-                subtitle: Text(s.grouping == NumberGrouping.lakh ? 'Lakh: 4,78,940' : 'Million: 478,940'),
+                subtitle: const Text('Set by the currency; change it if you write numbers differently'),
                 trailing: DropdownButton<NumberGrouping>(
                   value: s.grouping,
                   underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(value: NumberGrouping.lakh, child: Text('Lakh')),
-                    DropdownMenuItem(value: NumberGrouping.million, child: Text('Million')),
+                  items: [
+                    for (final g in NumberGrouping.values)
+                      DropdownMenuItem(
+                        value: g,
+                        child: Text(g.example, style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
+                      ),
                   ],
                   onChanged: (v) => v == null ? null : s.setGrouping(v),
                 ),
@@ -164,6 +188,65 @@ class _Group extends StatelessWidget {
             child: Column(children: children),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Every currency in a dropdown that filters as you type. Focusing it
+/// selects the current name, so typing replaces it and searches.
+class _CurrencyPicker extends StatefulWidget {
+  final SettingsController settings;
+
+  const _CurrencyPicker({required this.settings});
+
+  @override
+  State<_CurrencyPicker> createState() => _CurrencyPickerState();
+}
+
+class _CurrencyPickerState extends State<_CurrencyPicker> {
+  final _text = TextEditingController();
+
+  static String _label(Currency c) => '${c.name} (${c.code})';
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = widget.settings.currencyInfo;
+    return Focus(
+      skipTraversal: true,
+      onFocusChange: (focused) {
+        if (focused) _text.selection = TextSelection(baseOffset: 0, extentOffset: _text.text.length);
+      },
+      child: DropdownMenu<String>(
+        key: ValueKey(current.code),
+        controller: _text,
+        initialSelection: current.code,
+        expandedInsets: EdgeInsets.zero,
+        enableFilter: true,
+        requestFocusOnTap: true,
+        menuHeight: 360,
+        leadingIcon: SizedBox(
+          width: 48,
+          child: Center(child: Text(current.symbol, style: const TextStyle(fontWeight: FontWeight.w600))),
+        ),
+        dropdownMenuEntries: [
+          for (final c in currencies)
+            DropdownMenuEntry(
+              value: c.code,
+              label: _label(c),
+              trailingIcon: Text(c.symbol),
+            ),
+        ],
+        onSelected: (code) {
+          if (code != null) widget.settings.setCurrencyCode(code);
+          FocusScope.of(context).unfocus();
+        },
       ),
     );
   }

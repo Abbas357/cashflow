@@ -553,7 +553,15 @@ class _EntryFormPageState extends State<EntryFormPage> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: _saving ? null : () => _save(exit: true),
-                          child: const Text('Save and exit'),
+                          // A soft tint of the entry's colour, so it reads as
+                          // a button beside the solid one.
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: button.withValues(alpha: 0.08),
+                            foregroundColor: button,
+                            side: BorderSide(color: button.withValues(alpha: 0.35)),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          child: const Text('Save & exit', maxLines: 1, softWrap: false),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -563,8 +571,12 @@ class _EntryFormPageState extends State<EntryFormPage> {
                           style: FilledButton.styleFrom(
                             backgroundColor: button,
                             foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                           ),
-                          child: const Text('Save and continue'),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Save & continue', maxLines: 1, softWrap: false),
+                          ),
                         ),
                       ),
                     ],

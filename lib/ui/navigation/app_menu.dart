@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
-import '../../state/settings_controller.dart';
 import 'menu_items.dart';
 import 'menu_search.dart';
+import 'profile_footer.dart';
+
+export 'profile_footer.dart';
 
 /// The app icon, as shown in the menu, Help and anywhere else the brand
 /// appears.
@@ -151,60 +151,6 @@ class MenuList extends StatelessWidget {
             ),
         ],
       ],
-    );
-  }
-}
-
-/// Your name at the foot of the menu; opens Settings.
-class ProfileFooter extends StatelessWidget {
-  final bool collapsed;
-  final VoidCallback? onOpen;
-
-  const ProfileFooter({super.key, this.collapsed = false, this.onOpen});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<SettingsController>();
-    final t = Theme.of(context).textTheme;
-    final name = s.name.isEmpty ? 'You' : s.name;
-    final avatar = CircleAvatar(
-      radius: 15,
-      backgroundColor: AppTheme.brandColor,
-      foregroundColor: Colors.white,
-      child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-    );
-    void open() {
-      onOpen?.call();
-      context.go(Routes.settings);
-    }
-
-    if (collapsed) {
-      return Tooltip(
-        message: '$name: Settings',
-        child: IconButton(onPressed: open, icon: avatar),
-      );
-    }
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: open,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            avatar,
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: t.bodyMedium?.copyWith(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-                  Text('Offline, saved on this device', style: t.labelSmall, overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

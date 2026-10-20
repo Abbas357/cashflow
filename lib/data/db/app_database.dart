@@ -9,9 +9,18 @@ import 'db_factory_io.dart' if (dart.library.js_interop) 'db_factory_web.dart';
 /// version number. That keeps the door open for an offline-first sync layer
 /// (PowerSync, which speaks SQLite on the device and Postgres on Supabase)
 /// without reshaping data later.
+///
+/// Version 2 adds the sync outbox: triggers note every insert, update and
+/// delete in [syncedTables], so changes made offline (or before signing
+/// in) upload once there is a connection. Rows arriving from the cloud are
+/// written while `sync_meta` holds an `applying` row, which the triggers
+/// skip, so downloads are not sent straight back up.
 class AppDatabase {
   static const fileName = 'cash_flow.db';
-  static const version = 1;
+  static const version = 2;
+
+  /// The tables copied to the cloud, parents first.
+  static const syncedTables = ['accounts', 'account_members', 'entries', 'entry_changes'];
 
   static Future<Database> open() async {
     final (factory, path) = await openFactory(fileName);
@@ -24,7 +33,22 @@ class AppDatabase {
       options: OpenDatabaseOptions(
         version: version,
         onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
-        onCreate: (db, _) => _create(db),
+        onCreate: (db, _) async {
+          await _create(db);
+          await _createSync(db);
+        },
+        onUpgrade: (db, from, _) async {
+          if (from < 2) {
+            await _createSync(db);
+            // Everything written before the outbox existed still has to
+            // reach the cloud on the first sign-in.
+            for (final t in syncedTables) {
+              await db.execute(
+                "INSERT OR REPLACE INTO sync_outbox (tbl, row_id, op) SELECT '$t', id, 'upsert' FROM $t",
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -96,6 +120,39 @@ class AppDatabase {
         joined_at TEXT NOT NULL,
         UNIQUE (account_id, user_id)
       )''');
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> _createSync(Database db) async {
+    final batch = db.batch();
+    batch.execute('''
+      CREATE TABLE sync_outbox (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        tbl TEXT NOT NULL,
+        row_id TEXT NOT NULL,
+        op TEXT NOT NULL,
+        UNIQUE (tbl, row_id)
+      )''');
+    batch.execute('''
+      CREATE TABLE sync_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )''');
+    const local = "NOT EXISTS (SELECT 1 FROM sync_meta WHERE key = 'applying')";
+    for (final t in syncedTables) {
+      for (final (event, row, op) in [
+        ('INSERT', 'NEW', 'upsert'),
+        ('UPDATE', 'NEW', 'upsert'),
+        ('DELETE', 'OLD', 'delete'),
+      ]) {
+        batch.execute('''
+          CREATE TRIGGER sync_${t}_${event.toLowerCase()} AFTER $event ON $t
+          WHEN $local
+          BEGIN
+            INSERT OR REPLACE INTO sync_outbox (tbl, row_id, op) VALUES ('$t', $row.id, '$op');
+          END''');
+      }
+    }
     await batch.commit(noResult: true);
   }
 }

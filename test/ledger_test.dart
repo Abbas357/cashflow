@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cash_flow/core/utils/calculator.dart';
+import 'package:cash_flow/core/utils/currencies.dart';
 import 'package:cash_flow/core/utils/formatters.dart';
 import 'package:cash_flow/data/db/app_database.dart';
 import 'package:cash_flow/data/models/models.dart';
@@ -163,6 +164,26 @@ void main() {
       expect(Fmt.money(1250.5), 'Rs 1,250.5');
       Fmt.currency = '';
       Fmt.grouping = NumberGrouping.lakh;
+    });
+
+    test('world groupings', () {
+      Fmt.currency = '';
+      Fmt.decimals = 2;
+      Fmt.grouping = NumberGrouping.dotComma;
+      expect(Fmt.money(478940.5), '478.940,50');
+      Fmt.grouping = NumberGrouping.spaceComma;
+      expect(Fmt.money(478940.5), '478 940,50');
+      Fmt.grouping = NumberGrouping.apostrophe;
+      expect(Fmt.money(478940.5), "478'940.50");
+      Fmt.decimals = 0;
+      Fmt.grouping = NumberGrouping.lakh;
+    });
+
+    test('every currency has a unique code', () {
+      final codes = currencies.map((c) => c.code).toList();
+      expect(codes.toSet().length, codes.length);
+      expect(Currency.forCountry('pk')!.code, 'PKR');
+      expect(Currency.forCountry('DE')!.grouping, NumberGrouping.dotComma);
     });
 
     test('phone numbers normalise to one shape', () {

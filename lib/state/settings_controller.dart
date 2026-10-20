@@ -1,7 +1,10 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/utils/currencies.dart';
 import '../core/utils/formatters.dart';
 
 /// The person's preferences and profile, kept in shared preferences.
@@ -14,6 +17,7 @@ class SettingsController extends ChangeNotifier {
 
   static const _kTheme = 'theme_mode';
   static const _kCurrency = 'currency';
+  static const _kCurrencyCode = 'currency_code';
   static const _kGrouping = 'grouping';
   static const _kDecimals = 'decimals';
   static const _kWeekStart = 'week_start';
@@ -29,10 +33,24 @@ class SettingsController extends ChangeNotifier {
     orElse: () => ThemeMode.system,
   );
 
-  String get currency => _prefs.getString(_kCurrency) ?? 'Rs';
+  /// The picked currency. Before one is picked: the one this device's
+  /// region uses, or, for books started when the app only knew rupees,
+  /// whichever matches the symbol they set.
+  Currency get currencyInfo {
+    final picked = Currency.byCode(_prefs.getString(_kCurrencyCode));
+    if (picked != null) return picked;
+    final symbol = _prefs.getString(_kCurrency);
+    if (symbol != null) {
+      return currencies.where((c) => c.symbol == symbol).firstOrNull ?? Currency.byCode('PKR')!;
+    }
+    return Currency.forCountry(PlatformDispatcher.instance.locale.countryCode) ?? Currency.byCode('USD')!;
+  }
+
+  /// The symbol shown beside amounts: the currency's own, unless changed.
+  String get currency => _prefs.getString(_kCurrency) ?? currencyInfo.symbol;
   NumberGrouping get grouping => NumberGrouping.values.firstWhere(
     (g) => g.name == _prefs.getString(_kGrouping),
-    orElse: () => NumberGrouping.lakh,
+    orElse: () => currencyInfo.grouping,
   );
   int get decimals => _prefs.getInt(_kDecimals) ?? 0;
 
@@ -56,6 +74,27 @@ class SettingsController extends ChangeNotifier {
   }
 
   String get displayName => name.trim().isEmpty ? 'You' : name.trim();
+
+  static const _kCloudUser = 'cloud_user_id';
+
+  /// The signed-in account this device's books belong to, or null when
+  /// they have never been tied to one (or were signed out of).
+  String? get cloudUserId => _prefs.getString(_kCloudUser);
+
+  /// Ties this device's books to the cloud user [id], who becomes the
+  /// author of every change from here on.
+  Future<void> setCloudUser(String id) async {
+    await _prefs.setString(_kCloudUser, id);
+    await _set(_prefs.setString(_kUserId, id));
+  }
+
+  /// After signing out: a fresh local id for whatever is written next.
+  Future<void> forgetCloudUser() async {
+    await _prefs.remove(_kCloudUser);
+    await _set(_prefs.setString(_kUserId, const Uuid().v4()));
+  }
+
+  Future<void> setName(String v) => _set(_prefs.setString(_kName, v.trim()));
 
   /// Whether dark colours are showing right now, given the system setting.
   bool isDark(BuildContext context) => switch (themeMode) {
@@ -83,6 +122,16 @@ class SettingsController extends ChangeNotifier {
       setThemeMode(isDark(context) ? ThemeMode.light : ThemeMode.dark);
 
   Future<void> setCurrency(String v) => _set(_prefs.setString(_kCurrency, v.trim()));
+
+  /// Picks a currency, with its symbol and usual grouping. Both can still
+  /// be changed on their own afterwards.
+  Future<void> setCurrencyCode(String code) async {
+    final c = Currency.byCode(code);
+    if (c == null) return;
+    await _prefs.setString(_kCurrencyCode, c.code);
+    await _prefs.setString(_kGrouping, c.grouping.name);
+    await _set(_prefs.setString(_kCurrency, c.symbol));
+  }
   Future<void> setGrouping(NumberGrouping g) =>
       _set(_prefs.setString(_kGrouping, g.name));
   Future<void> setDecimals(int d) => _set(_prefs.setInt(_kDecimals, d));

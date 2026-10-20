@@ -21,7 +21,7 @@ const _topics = [
     'Type the amount. You can type sums like 250+120 or open the calculator.',
     'Add a note. Notes you used before are suggested as you type.',
     'Use the arrows beside the date to move a day back or forward, or tap it to pick any date.',
-    'Save and continue keeps the form open for the next entry. Save and exit goes back.',
+    'Save & continue keeps the form open for the next entry. Save & exit goes back.',
     'On a computer: Ctrl+I opens Cash In, Ctrl+O opens Cash Out, Ctrl+Enter saves.',
   ]),
   _Topic(Icons.edit_note_rounded, 'Editing and history', [

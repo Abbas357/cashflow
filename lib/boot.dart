@@ -6,11 +6,14 @@ import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'core/config/cloud_config.dart';
 import 'core/theme/app_theme.dart';
 import 'data/db/app_database.dart';
 import 'data/repositories/ledger_repository.dart';
+import 'services/cloud_sync.dart';
 import 'state/ledger_controller.dart';
 import 'state/settings_controller.dart';
 import 'ui/navigation/app_menu.dart';
@@ -24,6 +27,7 @@ class _Step {
 
 const _settings = _Step('Reading settings', 0.25);
 const _dates = _Step('Preparing dates', 0.35);
+const _signIn = _Step('Checking sign-in', 0.45);
 const _database = _Step('Opening your books', 0.65);
 const _accounts = _Step('Loading accounts', 0.9);
 
@@ -35,7 +39,11 @@ const _accounts = _Step('Loading accounts', 0.9);
 /// layout and hands over to this one where it left off, so the bar carries
 /// on without a jump.
 class BootApp extends StatefulWidget {
-  const BootApp({super.key});
+  /// Whether to connect to the cloud project. Off in tests, which have no
+  /// network or plugins.
+  final bool cloud;
+
+  const BootApp({super.key, this.cloud = true});
 
   @override
   State<BootApp> createState() => _BootAppState();
@@ -100,11 +108,27 @@ class _BootAppState extends State<BootApp> {
       final prefs = await _run(_settings, SharedPreferences.getInstance);
       final settings = SettingsController(prefs);
       await _run(_dates, () => initializeDateFormatting('en'));
+      // Reads the saved session (no network), or on the web finishes a
+      // Google sign-in the page was just sent back from.
+      if (widget.cloud && CloudConfig.enabled) {
+        await _run(
+          _signIn,
+          () => Supabase.initialize(
+            url: CloudConfig.url,
+            publishableKey: CloudConfig.publishableKey,
+            // Desktop apps never get a sign-in link back.
+            authOptions: FlutterAuthClientOptions(detectSessionInUri: CloudConfig.signInSupported),
+          ),
+        );
+      }
       final db = await _run(_database, AppDatabase.open);
       final repo = LedgerRepository(db, Actor(settings.userId, settings.displayName));
       final ledger = LedgerController(repo, settings);
       await _run(_accounts, ledger.load);
       _slowTimer?.cancel();
+      final cloud = CloudSync(ledger, settings);
+      // In the background: the books are usable straight away, offline.
+      if (widget.cloud) unawaited(cloud.start());
 
       setState(() {
         _progress = 1;
@@ -118,6 +142,7 @@ class _BootAppState extends State<BootApp> {
           providers: [
             ChangeNotifierProvider.value(value: settings),
             ChangeNotifierProvider.value(value: ledger),
+            ChangeNotifierProvider.value(value: cloud),
           ],
           child: const CashFlowApp(),
         );

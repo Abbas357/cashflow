@@ -1,7 +1,26 @@
 import 'package:intl/intl.dart';
 
-/// How large numbers are grouped: 4,78,940 (lakh) or 478,940 (million).
-enum NumberGrouping { lakh, million }
+/// How large numbers are grouped and which mark separates decimals.
+enum NumberGrouping {
+  /// South Asia: 4,78,940.50
+  lakh('4,78,940.50', 'en_IN'),
+
+  /// Most English-speaking countries, China, Japan: 478,940.50
+  million('478,940.50', 'en_US'),
+
+  /// Much of Europe and Latin America: 478.940,50
+  dotComma('478.940,50', 'de'),
+
+  /// France, the Nordics, Eastern Europe: 478 940,50
+  spaceComma('478 940,50', 'fr'),
+
+  /// Switzerland: 478'940.50
+  apostrophe("478'940.50", 'de_CH');
+
+  final String example;
+  final String _locale;
+  const NumberGrouping(this.example, this._locale);
+}
 
 /// Turns amounts and dates into text, following the user's settings.
 class Fmt {
@@ -14,13 +33,14 @@ class Fmt {
   static NumberFormat get _number {
     final fraction = decimals == 0 ? '' : '.${'0' * decimals}';
     final optional = decimals == 0 ? '.##' : '';
-    return grouping == NumberGrouping.lakh
-        ? NumberFormat('#,##,##0$fraction$optional', 'en_IN')
-        : NumberFormat('#,##0$fraction$optional', 'en_US');
+    final pattern = grouping == NumberGrouping.lakh ? '#,##,##0' : '#,##0';
+    return NumberFormat('$pattern$fraction$optional', grouping._locale);
   }
 
-  /// 4,78,940 or 4,78,940.50 (no currency symbol).
-  static String number(num value) => _number.format(value);
+  /// 4,78,940 or 478.940,50 (no currency symbol), as grouping says.
+  /// French grouping uses a narrow space some fonts lack; a plain
+  /// no-break space looks the same and prints everywhere.
+  static String number(num value) => _number.format(value).replaceAll(' ', ' ');
 
   /// Rs 4,78,940 when a currency symbol is set.
   static String money(num value, {bool signed = false}) {
