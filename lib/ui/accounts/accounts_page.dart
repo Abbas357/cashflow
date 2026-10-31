@@ -65,7 +65,7 @@ class _AccountsPageState extends State<AccountsPage> {
       body: MaxWidth(
         maxWidth: 820,
         child: ReorderableListView.builder(
-          padding: EdgeInsets.fromLTRB(context.isPhone ? 16 : 24, 8, context.isPhone ? 16 : 24, 96),
+          padding: EdgeInsets.fromLTRB(context.isPhone ? 16 : 24, 8, context.isPhone ? 16 : 24, 96).clearOfSystemBars(context),
           buildDefaultDragHandles: false,
           header: Padding(
             padding: const EdgeInsets.only(bottom: 12, left: 4),

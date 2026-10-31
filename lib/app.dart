@@ -89,8 +89,15 @@ class _CashFlowAppState extends State<CashFlowApp> {
   /// are signed in (on the web, the Google round trip lands on the start
   /// page and the code would otherwise be lost).
   void _offerPendingJoin() {
+    if (!(_cloud?.signedIn ?? false)) return;
+    // The same round trip from the delete account page.
+    if (_settings.pendingDeleteAccount) {
+      _settings.setPendingDeleteAccount(false);
+      _router.go(Routes.deleteAccount);
+      return;
+    }
     final code = _settings.pendingJoin;
-    if (code == null || !(_cloud?.signedIn ?? false)) return;
+    if (code == null) return;
     _settings.setPendingJoin(null);
     _router.go(Routes.join(code));
   }

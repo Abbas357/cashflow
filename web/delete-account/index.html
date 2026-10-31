@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<!--
+  The public account deletion page Google Play asks for. Give this address in
+  Play Console, under App content, Data safety:
+  https://abbas357.github.io/cashflow/delete-account/
+
+  Plain HTML on purpose. GitHub Pages answers app addresses such as
+  /cashflow/settings/delete-account with its 404 file, which a store check can
+  read as a dead link, and the app's text cannot be read without running it.
+  This page answers 200 and can be read anywhere, with no app and no script.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How to delete your Cash Flow account and the data stored with it.">
+  <title>Delete your Cash Flow account</title>
+  <link rel="icon" type="image/png" href="../favicon.png">
+  <style>
+    :root {
+      --bg: #F4F6F5; --card: #FFFFFF; --text: #1A1F1C; --muted: #5C6661;
+      --line: #DCE5E0; --brand: #006B3C; --danger: #E53935;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0F1412; --card: #1A211D; --text: #E7ECE9; --muted: #A0ABA5;
+        --line: #26302B; --brand: #3DCB86;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 32px 16px 48px; background: var(--bg); color: var(--text);
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+    header img { width: 56px; height: 56px; border-radius: 14px; }
+    header p { margin: 0; color: var(--muted); }
+    h1 { margin: 0; font-size: 26px; line-height: 1.25; }
+    h2 { margin: 0 0 8px; font-size: 18px; color: var(--brand); }
+    section {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px 20px; margin-top: 14px;
+    }
+    ol, ul { margin: 0; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    li:last-child { margin-bottom: 0; }
+    section p { margin: 0; }
+    .action {
+      display: block; margin-top: 16px; padding: 13px 18px; border-radius: 10px;
+      background: var(--danger); color: #FFFFFF; font-weight: 600; text-align: center;
+      text-decoration: none;
+    }
+    .action:hover, .action:focus-visible { background: #C62828; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../icons/Icon-192.png" alt="">
+      <div>
+        <h1>Delete your Cash Flow account</h1>
+        <p>For the Cash Flow app on Android and the web</p>
+      </div>
+    </header>
+
+    <section>
+      <h2>How to delete your account</h2>
+      <ol>
+        <li>Open the delete account page with the button below, on any phone or computer. You do not need the app installed.</li>
+        <li>Sign in with the Google account you use in Cash Flow.</li>
+        <li>Read what will be removed, type DELETE and choose <strong>Delete my account permanently</strong>.</li>
+      </ol>
+      <a class="action" href="../settings/delete-account">Delete my account</a>
+    </section>
+
+    <section>
+      <h2>In the Android app</h2>
+      <p>While signed in, open <strong>Settings</strong> and choose <strong>Delete account</strong>, or tap your name at the bottom of the menu and choose <strong>Delete account</strong>.</p>
+    </section>
+
+    <section>
+      <h2>What is deleted</h2>
+      <ul>
+        <li>Your accounts, entries and change history, in the cloud and on the device you delete from. Accounts you shared are deleted for everyone in them.</li>
+        <li>The Google details Cash Flow holds: your name, email address, photo and sign-in.</li>
+        <li>Your profile, settings and receipt photos on that device.</li>
+        <li>Your place in accounts other people shared with you, invitations sent to you, and the notification registration of your phones.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What is kept</h2>
+      <ul>
+        <li>Entries you added to accounts other people own stay in their books, because they are part of those people's records. Your name is removed and they show as made by "Deleted user".</li>
+        <li>A copy on another phone or browser stays on that device until you use <strong>Settings, Delete all data</strong> on it or remove the app.</li>
+        <li>Your Google account itself is not affected. Only its link to Cash Flow is removed.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>How long it takes</h2>
+      <p>Deletion happens at once and cannot be undone. Nothing is held back for a waiting period. Technical logs at our hosting provider, Supabase, may mention your account for a short time after that, until they expire on their own. If you sign in again later, you start with a new, empty account.</p>
+    </section>
+
+    <section>
+      <h2>Never signed in?</h2>
+      <p>Then nothing was stored online. Your books are only on your device: use <strong>Settings, Delete all data</strong>, or remove the app.</p>
+    </section>
+  </main>
+</body>
+</html>

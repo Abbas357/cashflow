@@ -175,7 +175,7 @@ class _SharingPageState extends State<SharingPage> {
       body: members == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16).clearOfSystemBars(context),
               children: [
                 if (!signedIn) ...[
                   Container(

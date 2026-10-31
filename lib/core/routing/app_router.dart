@@ -19,6 +19,7 @@ import '../../ui/reports/all_transactions_page.dart';
 import '../../ui/reports/insights_page.dart';
 import '../../ui/reports/period_summary_page.dart';
 import '../../ui/reports/reports_page.dart';
+import '../../ui/settings/delete_account_page.dart';
 import '../../ui/settings/settings_page.dart';
 import '../../ui/sharing/join_page.dart';
 import '../../ui/sharing/notifications_page.dart';
@@ -52,6 +53,10 @@ class Routes {
   static const transfer = '/transfer';
   static const backup = '/backup';
   static const settings = '/settings';
+
+  /// Not `/delete-account`: that is the public page in `web/delete-account`,
+  /// the address given to Google Play, which links here.
+  static const deleteAccount = '/settings/delete-account';
   static const help = '/help';
   static const howToUse = '/how-to-use';
   static const sharing = '/sharing';
@@ -210,6 +215,7 @@ GoRouter buildRouter(
               page(Routes.transfer, () => const TransferPage()),
               page(Routes.backup, () => const BackupPage()),
               page(Routes.settings, () => const SettingsPage()),
+              page(Routes.deleteAccount, () => const DeleteAccountPage()),
               page(Routes.help, () => const HelpPage()),
               page(Routes.howToUse, () => const HowToUsePage()),
               page(Routes.sharing, () => const SharingHubPage()),

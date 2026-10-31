@@ -96,7 +96,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             );
           }
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16).clearOfSystemBars(context),
             children: [
               MaxWidthColumn(
                 children: [

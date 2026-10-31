@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/currencies.dart';
 import '../../core/utils/formatters.dart';
@@ -178,6 +180,19 @@ class SettingsPage extends StatelessWidget {
               ),
             ],
           ),
+          if (context.watch<CloudSync?>()?.signedIn ?? false)
+            _Group(
+              title: 'Account',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.person_remove_outlined, color: AppTheme.errorColor),
+                  title: const Text('Delete account', style: TextStyle(color: AppTheme.errorColor)),
+                  subtitle: const Text('Remove your account and data from Cash Flow for good'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(Routes.deleteAccount),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           Text('Cash Flow 1.0.0', style: t.bodySmall, textAlign: TextAlign.center),
         ],

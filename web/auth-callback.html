@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!--
+  Where Google sign-in ends in the web app's sign-in window. It hands the result
+  to the page that opened the window (lib/services/auth_popup_web.dart) and
+  closes. Plain HTML, so the window does not load the whole app just to close.
+
+  A channel rather than window.opener: it only reaches pages of this site, and
+  still works if a sign-in page along the way cuts the link to the opener.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Cash Flow</title>
+  <style>
+    :root { --bg: #F4F6F5; --text: #1A1F1C; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0F1412; --text: #E7ECE9; } }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+      box-sizing: border-box; background: var(--bg); color: var(--text); text-align: center;
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <p id="message">Signing in…</p>
+  <script>
+    const query = new URLSearchParams(location.search);
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const read = (key) => query.get(key) || hash.get(key);
+    const channel = new BroadcastChannel('cash-flow-auth');
+    channel.postMessage({
+      code: query.get('code'),
+      error: read('error_description') || read('error'),
+    });
+    channel.close();
+    // The code is single use, but need not stay in the address or the history.
+    history.replaceState(null, '', location.pathname);
+    window.close();
+    // Only still here if the browser refused to close the window.
+    setTimeout(() => {
+      document.getElementById('message').textContent =
+        'You can close this window and go back to Cash Flow.';
+    }, 800);
+  </script>
+</body>
+</html>

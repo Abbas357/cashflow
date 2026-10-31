@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/config/cloud_config.dart';
 import '../core/utils/formatters.dart';
@@ -11,6 +13,7 @@ import '../data/db/app_database.dart';
 import '../data/models/models.dart';
 import '../state/ledger_controller.dart';
 import '../state/settings_controller.dart';
+import 'auth_popup_io.dart' if (dart.library.js_interop) 'auth_popup_web.dart';
 import 'notifier.dart';
 import 'push.dart';
 
@@ -61,6 +64,9 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   SyncState status = SyncState.unavailable;
   DateTime? lastSynced;
 
+  /// Google's sign-in window is open. The buttons show a spinner meanwhile.
+  bool signingIn = false;
+
   /// Changes on this device that have not reached the cloud yet.
   int pending = 0;
 
@@ -108,7 +114,10 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _periodic;
   String? _uid;
   int _seenRevision = 0;
+  AuthPopup? _popup;
+  Timer? _signInBackedOut;
   bool _running = false;
+  bool _deleting = false;
   bool _showingArrivals = false;
   bool _again = false;
 
@@ -159,6 +168,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _auth?.cancel();
+    _signInBackedOut?.cancel();
     _debounce?.cancel();
     _periodic?.cancel();
     _channel?.unsubscribe();
@@ -169,15 +179,97 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
 
   // ---------------------------------------------------------------- sign in
 
-  /// Opens Google's account chooser: the same tab on the web, the browser
-  /// on Android. The result comes back by redirect and arrives through
-  /// [_onAuth].
+  /// Opens Google's account chooser: a small window over the page on the
+  /// web, a Custom Tab (Chrome's minimal window, inside the app) on Android.
+  /// The session arrives through [_onAuth]; [signingIn] is on until then, or
+  /// until the person backs out.
+  ///
+  /// The window must open straight from the tap, so nothing here waits first.
   Future<void> signIn() async {
-    await _client.auth.signInWithOAuth(
-      OAuthProvider.google,
+    if (signingIn) {
+      _popup?.focus();
+      return;
+    }
+    _setSigningIn(true);
+    try {
+      if (kIsWeb) {
+        await _signInOnWeb();
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        await _signInOnAndroid();
+      } else {
+        await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: CloudConfig.redirectUrl,
+          queryParams: _signInQuery,
+        );
+      }
+    } catch (_) {
+      _setSigningIn(false);
+      rethrow;
+    }
+  }
+
+  static const _signInQuery = {'prompt': 'select_account'};
+
+  Future<void> _signInOnWeb() async {
+    final popup = AuthPopup.open();
+    // Blocked: the whole tab goes to Google and comes back instead.
+    if (popup == null) {
+      await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: CloudConfig.redirectUrl,
+        queryParams: _signInQuery,
+      );
+      return;
+    }
+    _popup = popup;
+    try {
+      final OAuthResponse start;
+      try {
+        start = await _client.auth.getOAuthSignInUrl(
+          provider: OAuthProvider.google,
+          redirectTo: '${CloudConfig.redirectUrl}${AuthPopup.callbackPage}',
+          queryParams: _signInQuery,
+        );
+      } catch (_) {
+        popup.close();
+        rethrow;
+      }
+      popup.go(start.url);
+      final result = await popup.result;
+      final code = result.code;
+      if (code != null) {
+        await _client.auth.exchangeCodeForSession(code);
+      } else if (result.error != null && result.error != 'access_denied') {
+        throw AuthException(result.error!);
+      }
+    } finally {
+      _popup = null;
+      _setSigningIn(false);
+    }
+  }
+
+  /// Not `signInWithOAuth`: it always sends Google sign-in on Android out to
+  /// the browser app. A Custom Tab is a real browser, so Google accepts it,
+  /// and the deep link back closes it (`singleTask` in AndroidManifest.xml).
+  Future<void> _signInOnAndroid() async {
+    final start = await _client.auth.getOAuthSignInUrl(
+      provider: OAuthProvider.google,
       redirectTo: CloudConfig.redirectUrl,
-      queryParams: const {'prompt': 'select_account'},
+      queryParams: _signInQuery,
     );
+    final tab = await supportsLaunchMode(LaunchMode.inAppBrowserView);
+    await launchUrl(
+      Uri.parse(start.url),
+      mode: tab ? LaunchMode.inAppBrowserView : LaunchMode.externalApplication,
+    );
+  }
+
+  void _setSigningIn(bool on) {
+    _signInBackedOut?.cancel();
+    if (signingIn == on) return;
+    signingIn = on;
+    notifyListeners();
   }
 
   /// Uploads what it can, signs out, and removes this device's copy of the
@@ -186,6 +278,41 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await sync();
     } catch (_) {}
+    await _leave(settings.forgetCloudUser);
+  }
+
+  /// Deletes this person for good: their account and books in the cloud,
+  /// their Google details held there (see `0006_delete_account.sql`), then
+  /// everything on this device. Throws with nothing changed if the cloud
+  /// cannot be reached or refuses.
+  Future<void> deleteAccount() async {
+    // No sync may run alongside: one finishing after the wipe below would
+    // write downloaded rows back to the device.
+    _deleting = true;
+    _debounce?.cancel();
+    try {
+      while (_running) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      await deleteFromCloud();
+    } catch (_) {
+      _deleting = false;
+      rethrow;
+    }
+    _news.clear();
+    rejected = 0;
+    error = null;
+    await _leave(settings.eraseAll);
+    _deleting = false;
+  }
+
+  /// The part of [deleteAccount] that needs the server.
+  @protected
+  Future<void> deleteFromCloud() => _client.rpc<void>('delete_my_account');
+
+  /// Ends the session and removes this device's copy of the books, then
+  /// [forget]s who was signed in.
+  Future<void> _leave(Future<void> Function() forget) async {
     // While still signed in, so the server forgets this phone.
     await _pushes.stop();
     try {
@@ -195,7 +322,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     invitations = const [];
     await settings.setUnreadChanges({});
     await _wipeLocal();
-    await settings.forgetCloudUser();
+    await forget();
     await ledger.reload();
     _seenRevision = ledger.revision;
     await _countPending();
@@ -203,6 +330,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _onAuth(User? u) async {
+    if (u != null) _setSigningIn(false);
     if (u?.id == _uid) return;
     _uid = u?.id;
     if (u == null) {
@@ -282,6 +410,13 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && signedIn) _schedule(Duration.zero);
+    // Back from the Custom Tab. A session on its way arrives by itself; if
+    // none comes, they closed it without signing in.
+    if (state == AppLifecycleState.resumed && signingIn && _popup == null) {
+      _signInBackedOut?.cancel();
+      _signInBackedOut = Timer(const Duration(seconds: 5), () => _setSigningIn(false));
+    }
+    if (state == AppLifecycleState.paused) _signInBackedOut?.cancel();
   }
 
   void _schedule(Duration after) {
@@ -311,7 +446,7 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
   /// Uploads waiting changes, then downloads new ones. Safe to call any
   /// time: a call during a run makes that run go round once more.
   Future<void> sync() async {
-    if (!signedIn) return;
+    if (!signedIn || _deleting) return;
     if (_running) {
       _again = true;
       return;
@@ -573,10 +708,14 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
             // A newer change on this device wins; it uploads next and
             // comes back down afterwards.
             if (waiting.contains(r['id'])) continue;
+            // History already here is not news. It only changes when the
+            // person who made it deletes their account and their name goes.
+            final isNew = table == 'entry_changes' &&
+                (await txn.query(table, columns: ['id'], where: 'id = ?', whereArgs: [r['id']])).isEmpty;
             if (await _write(txn, table, _toLocal(table, r, columns))) {
               arrived = true;
               // Someone else's change, after the first download: tell them.
-              if (table == 'entry_changes' && since != null && r['changed_by'] != _uid) _news.add(r);
+              if (isNew && since != null && r['changed_by'] != _uid) _news.add(r);
             }
           }
         });

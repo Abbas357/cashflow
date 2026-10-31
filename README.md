@@ -78,6 +78,10 @@ Run these from this folder, in any terminal.
 * **Sign in with Google** (web and Android, no passwords): the books sync to
   Supabase in the background and appear on every device signed in to the
   same Google account. Works offline; changes upload when back online.
+* **Delete account** (signed in, web and Android): removes the books, the
+  Google details held in Supabase and everything on the device. Public page
+  for Google Play: https://abbas357.github.io/cashflow/delete-account/ (see
+  [docs/SUPABASE_SYNC.md](docs/SUPABASE_SYNC.md#deleting-an-account)).
 * **Backup and restore** to a JSON file.
 * **Light and dark** themes (toggle on the main screen). Over 60 currencies
   to pick from, each with its usual number grouping (4,78,940 / 478,940 /

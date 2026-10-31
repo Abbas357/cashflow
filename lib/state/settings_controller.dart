@@ -94,6 +94,10 @@ class SettingsController extends ChangeNotifier {
     await _set(_prefs.setString(_kUserId, const Uuid().v4()));
   }
 
+  /// After deleting the account: everything kept here goes, as on a fresh
+  /// install. The next write gets a new local id.
+  Future<void> eraseAll() => _set(_prefs.clear());
+
   Future<void> setName(String v) => _set(_prefs.setString(_kName, v.trim()));
 
   static const _kNotifyChanges = 'notify_changes';
@@ -120,6 +124,13 @@ class SettingsController extends ChangeNotifier {
   String? get pendingJoin => _prefs.getString(_kPendingJoin);
   Future<void> setPendingJoin(String? code) =>
       code == null ? _prefs.remove(_kPendingJoin) : _prefs.setString(_kPendingJoin, code);
+
+  static const _kPendingDelete = 'pending_delete_account';
+
+  /// Opened the delete account page signed out, to return to once signed in.
+  bool get pendingDeleteAccount => _prefs.getBool(_kPendingDelete) ?? false;
+  Future<void> setPendingDeleteAccount(bool v) =>
+      v ? _prefs.setBool(_kPendingDelete, true) : _prefs.remove(_kPendingDelete);
 
   /// Whether dark colours are showing right now, given the system setting.
   bool isDark(BuildContext context) => switch (themeMode) {

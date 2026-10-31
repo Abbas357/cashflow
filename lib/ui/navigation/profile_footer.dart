@@ -55,7 +55,9 @@ class ProfileFooter extends StatelessWidget {
               message: 'Continue with Google',
               child: IconButton(
                 onPressed: () => signInWithGoogle(context, cloud),
-                icon: const GoogleLogo(size: 20),
+                icon: cloud.signingIn
+                    ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const GoogleLogo(size: 20),
               ),
             ),
         ],
@@ -154,6 +156,14 @@ class ProfileFooter extends StatelessWidget {
           value: 'out',
           child: ListTile(leading: Icon(Icons.logout_rounded), title: Text('Sign out'), contentPadding: EdgeInsets.zero),
         ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(Icons.person_remove_outlined, color: AppTheme.errorColor),
+            title: Text('Delete account', style: TextStyle(color: AppTheme.errorColor)),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
       ],
     );
     if (!context.mounted) return;
@@ -163,6 +173,9 @@ class ProfileFooter extends StatelessWidget {
       case 'settings':
         onOpen?.call();
         context.go(Routes.settings);
+      case 'delete':
+        onOpen?.call();
+        context.go(Routes.deleteAccount);
       case 'out':
         final waiting = cloud.pending;
         final lost = waiting == 0
@@ -240,6 +253,6 @@ Future<void> signInWithGoogle(BuildContext context, CloudSync cloud) async {
   try {
     await cloud.signIn();
   } catch (_) {
-    if (context.mounted) toast(context, 'Could not open Google sign-in. Check the connection and try again.');
+    if (context.mounted) toast(context, 'Could not sign in with Google. Check the connection and try again.');
   }
 }

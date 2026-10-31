@@ -542,6 +542,19 @@ class LedgerRepository {
     });
   }
 
+  /// The accounts this person owns and has shared with someone, who would
+  /// lose them if the account were deleted.
+  Future<List<String>> sharedAccountNames() async => [
+    for (final r in await db.rawQuery(
+      '''SELECT a.name FROM accounts a
+         WHERE a.role = 'owner' AND a.deleted_at IS NULL
+           AND EXISTS (SELECT 1 FROM account_members m
+                       WHERE m.account_id = a.id AND m.role != 'owner' AND m.status = 'active')
+         ORDER BY a.sort_order, a.name''',
+    ))
+      r['name'] as String,
+  ];
+
   Future<void> wipe() async {
     await db.transaction((txn) async {
       for (final t in _tables.reversed) {

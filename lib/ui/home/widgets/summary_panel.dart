@@ -40,7 +40,7 @@ class SummaryPanel extends StatelessWidget {
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20).clearOfSystemBars(context),
         children: [
           Text('Overview', style: t.titleLarge),
           const SizedBox(height: 16),

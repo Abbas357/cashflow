@@ -34,6 +34,19 @@ class Attachments {
     return dest;
   }
 
+  /// Removes every receipt photo on this device, when the account is deleted.
+  static Future<void> deleteAll() async {
+    if (!supported) return;
+    try {
+      final dir = Directory(
+        p.join((await getApplicationDocumentsDirectory()).path, 'cash_flow_attachments'),
+      );
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (error) {
+      debugPrint('Cash Flow: could not remove receipt photos: $error');
+    }
+  }
+
   static Widget image(String path, {BoxFit fit = BoxFit.cover}) {
     if (!supported) return const SizedBox.shrink();
     return Image.file(

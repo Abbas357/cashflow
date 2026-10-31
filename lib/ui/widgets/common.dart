@@ -199,7 +199,7 @@ class EmptyState extends StatelessWidget {
     // keyboard up) instead of overflowing.
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32).clearOfSystemBars(context),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -342,6 +342,24 @@ Future<T?> openAdaptive<T>(
   );
 }
 
+extension ClearOfSystemBars on EdgeInsets {
+  /// This padding for a scrolling list, plus the room the system takes.
+  ///
+  /// Android draws the app behind its navigation bar, and a list given its
+  /// own padding no longer leaves room for it, so the end of the list stays
+  /// hidden. The room is what the phone reports right now: most with buttons,
+  /// little with gestures, none with the bar hidden or on the web. Under a
+  /// bar that handles this itself, leave the list's padding alone.
+  EdgeInsets clearOfSystemBars(BuildContext context) {
+    final system = MediaQuery.paddingOf(context);
+    return copyWith(
+      left: left + system.left,
+      right: right + system.right,
+      bottom: bottom + system.bottom,
+    );
+  }
+}
+
 /// A standard page body: scrolls, and stays a readable width on desktop.
 class PageBody extends StatelessWidget {
   final List<Widget> children;
@@ -355,7 +373,7 @@ class PageBody extends StatelessWidget {
       padding: EdgeInsets.symmetric(
         horizontal: context.isPhone ? 16 : 24,
         vertical: 16,
-      ),
+      ).clearOfSystemBars(context),
       children: [
         MaxWidth(
           maxWidth: maxWidth,

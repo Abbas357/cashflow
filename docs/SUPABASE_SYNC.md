@@ -20,14 +20,21 @@ and browser the person signs in on.
 
 ## Signing in
 
-* **Web:** "Continue with Google" at the bottom left of the sidebar sends the
-  tab to Google's account chooser and back, like Claude's own sign-in.
-  Supabase finishes the sign-in on load (`Supabase.initialize` in
-  `lib/boot.dart`) and clears `?code=` from the address.
-* **Android:** the same button at the bottom of the drawer opens Google in
-  the browser; it returns to the app by the deep link
+* **Web:** "Continue with Google" at the bottom left of the sidebar opens
+  Google's account chooser in a small window over the page, and its text
+  becomes a spinner, like Claude's own sign-in. The window ends on
+  `web/auth-callback.html`, which passes the code to the page on a
+  `BroadcastChannel` and closes; the page then finishes the sign-in
+  (`lib/services/auth_popup_web.dart`). If the browser blocks the window, the
+  whole tab goes to Google and back instead, and Supabase finishes the sign-in
+  on load (`Supabase.initialize` in `lib/boot.dart`).
+* **Android:** the same button at the bottom of the drawer opens Google in a
+  Custom Tab, Chrome's minimal window inside the app. Not a WebView: Google
+  refuses to sign in inside one. It returns by the deep link
   `com.finance.cashflow://login-callback` (`com.finance.cashflow.dev://...`
-  for the dev app), declared in `AndroidManifest.xml`.
+  for the dev app), declared in `AndroidManifest.xml`, and `singleTask` there
+  closes the tab. `signInWithOAuth` cannot do this, because it forces Google
+  sign-in on Android out to the browser app.
 * **Desktop apps** have no redirect to come back to, so they stay offline
   and say so. Use the web app on a computer.
 * There are no passwords. Supabase keeps the session on the device and
@@ -76,7 +83,8 @@ the app points at it.
 1. **Create a Supabase project** at https://supabase.com (free tier is fine).
 2. **Run the migrations** in order, in the SQL editor (or `supabase db push`):
    `0001_init.sql`, `0002_google_sync.sql`, `0003_harden_functions.sql`,
-   `0004_share_by_email_and_qr.sql`, `0005_push_devices.sql`. Deploy
+   `0004_share_by_email_and_qr.sql`, `0005_push_devices.sql`,
+   `0006_delete_account.sql`. Deploy
    `supabase/functions/notify-changes` (with JWT verification off: it
    checks the caller itself).
 3. **Google OAuth client.** In Google Cloud Console, APIs and Services,
@@ -162,6 +170,38 @@ else's change, while the page is open.
    value. Then delete the downloaded file.
 5. **Rebuild the APK** (`dart tool/build.dart`) and install it on both
    phones.
+
+## Deleting an account
+
+Google Play requires a way to delete an account from inside the app and a
+public web address for it. Both are here.
+
+* **In the app** (Android and web): **Settings, Delete account**, or the
+  account popup at the bottom of the menu. It opens `/settings/delete-account`,
+  which asks to type DELETE first.
+* **On the web:** https://abbas357.github.io/cashflow/delete-account/ is plain
+  HTML (`web/delete-account/index.html`) that says what is deleted and links to
+  that page. This is the address to give in Play Console, under App content,
+  Data safety. It is not the app's own page because GitHub Pages answers those
+  addresses with its 404 file.
+
+`delete_my_account()` (`0006_delete_account.sql`) runs in one transaction, so
+it either all happens or none of it does. It removes the person from
+`auth.users`, which takes their Google identity, sessions, profile, phones and
+owned accounts (with entries, history, members and QR codes) with it, along
+with invitations addressed to them.
+
+Entries they added to accounts other people own stay in those books, and the
+history there reads "Deleted user". The author columns keep the old random id,
+which leads to nobody: devices store them as `NOT NULL`, so clearing them would
+stop the other members' sync. Accounts they owned leave the other members'
+devices on their next sync.
+
+After the server agrees, the app removes everything on the device: books,
+outbox, shared preferences (name, address, drafts, settings) and receipt photos.
+If the server cannot be reached, nothing is removed. Copies on the person's
+other devices stay until cleared there; those devices are signed out when their
+session can no longer be refreshed.
 
 ## Web updates
 

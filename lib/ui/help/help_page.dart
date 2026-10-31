@@ -25,6 +25,11 @@ const _faq = [
     'Yes, once cloud sync is on. Share the account with their mobile number and choose whether they can edit or only view. '
         'They accept the invitation, then see every entry and change.',
   ),
+  (
+    'How do I delete my account?',
+    'While signed in, open Settings and choose Delete account, or tap your name at the bottom of the menu. '
+        'Your account, books and the Google details Cash Flow holds are removed from the cloud and this device for good.',
+  ),
 ];
 
 class HelpPage extends StatelessWidget {

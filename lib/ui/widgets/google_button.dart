@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../services/cloud_sync.dart';
 
 /// Google's "G", drawn rather than shipped as an image so it stays sharp
 /// at any size.
@@ -51,7 +54,8 @@ class _GPainter extends CustomPainter {
 }
 
 /// "Continue with Google", in Google's own button style: white with a grey
-/// outline in light mode, near black in dark mode.
+/// outline in light mode, near black in dark mode. A spinner takes the place
+/// of its text while Google's sign-in window is open.
 class GoogleButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final String label;
@@ -61,6 +65,7 @@ class GoogleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final signingIn = context.watch<CloudSync?>()?.signingIn ?? false;
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
@@ -72,16 +77,25 @@ class GoogleButton extends StatelessWidget {
         shape: const StadiumBorder(),
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const GoogleLogo(),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
-        ],
-      ),
+      child: signingIn
+          ? SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                semanticsLabel: 'Signing in',
+                color: dark ? const Color(0xFFE3E3E3) : const Color(0xFF1F1F1F),
+              ),
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const GoogleLogo(),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
     );
   }
 }
