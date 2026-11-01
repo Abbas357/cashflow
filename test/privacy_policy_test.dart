@@ -25,8 +25,11 @@ void main() {
       privacyIntro,
       for (final s in privacySections) ...[s.title, ?s.intro, ...s.bullets, ?s.outro],
     ].join('\n');
-    expect(all, contains(privacyDeveloper));
-    expect(all, contains(privacyEmail));
+    expect(all, contains('Abbas Khan'));
+    expect(all, contains('Syed Azaz Hussain Shah'));
+    for (final email in privacyEmails) {
+      expect(all, contains(email));
+    }
     expect(all, contains('How long data is kept'));
     expect(all, contains(deleteAccountUrl));
     expect(all, isNot(contains('—')));

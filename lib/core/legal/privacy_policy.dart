@@ -10,17 +10,21 @@ class PolicySection {
   final List<String> bullets;
   final String? outro;
 
-  const PolicySection(this.title, {this.intro, this.bullets = const [], this.outro});
+  const PolicySection(
+    this.title, {
+    this.intro,
+    this.bullets = const [],
+    this.outro,
+  });
 }
 
 const privacyUpdated = '1 November 2026';
-const privacyDeveloper = 'Abbas Khan';
-const privacyEmail = 'abbaskhan357@gmail.com';
+const privacyEmails = ['abbaskhan357@gmail.com', 'azaz.hussain619@gmail.com'];
 const privacyUrl = 'https://abbas357.github.io/cashflow/privacy/';
 const deleteAccountUrl = 'https://abbas357.github.io/cashflow/delete-account/';
 
 const privacyIntro =
-    'Cash Flow is a cash book for Android and the web, made by $privacyDeveloper. This policy explains '
+    'Cash Flow is a cash book for Android and the web, made by Abbas Khan & Syed Azaz Hussain Shah. This policy explains '
     'what the app collects, why, who can see it, how long it is kept and how you can delete it.';
 
 const privacySections = <PolicySection>[
@@ -43,7 +47,8 @@ const privacySections = <PolicySection>[
       'Your name, which is also printed on reports. If you sign in, it is stored with the changes you make, as described below.',
       'Your settings, such as currency and theme.',
     ],
-    outro: 'Backup, PDF and CSV files are saved or shared only where you choose.',
+    outro:
+        'Backup, PDF and CSV files are saved or shared only where you choose.',
   ),
   PolicySection(
     'Usage statistics',
@@ -144,6 +149,6 @@ const privacySections = <PolicySection>[
   ),
   PolicySection(
     'Contact',
-    intro: 'For questions or requests about your privacy, contact $privacyDeveloper at $privacyEmail.',
+    intro: 'For questions or requests about your privacy, contact Abbas Khan or Syed Azaz Hussain Shah at abbaskhan357@gmail.com or azaz.hussain619@gmail.com.',
   ),
 ];

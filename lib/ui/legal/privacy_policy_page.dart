@@ -53,7 +53,7 @@ class PrivacyPolicyPage extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: () => launchUrl(Uri(scheme: 'mailto', path: privacyEmail)),
+            onPressed: () => launchUrl(Uri(scheme: 'mailto', path: privacyEmails.join(','))),
             icon: const Icon(Icons.mail_outline_rounded),
             label: const Text('Email about privacy'),
           ),
