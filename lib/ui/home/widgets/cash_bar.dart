@@ -137,7 +137,7 @@ class _BigButton extends StatelessWidget {
           backgroundColor: color,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
           textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         icon: Icon(icon, size: 22),

@@ -11,9 +11,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/config/cloud_config.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/device_region.dart';
 import 'data/db/app_database.dart';
 import 'data/repositories/ledger_repository.dart';
 import 'services/cloud_sync.dart';
+import 'services/install_report.dart';
 import 'services/notifier.dart';
 import 'services/push.dart';
 import 'state/ledger_controller.dart';
@@ -109,6 +111,11 @@ class _BootAppState extends State<BootApp> {
     try {
       final prefs = await _run(_settings, SharedPreferences.getInstance);
       final settings = SettingsController(prefs);
+      // Once, so the first screen already shows this country's currency.
+      if (widget.cloud && settings.country == null) {
+        final country = await DeviceRegion.detect();
+        if (country != null) await settings.setCountry(country);
+      }
       await _run(_dates, () => initializeDateFormatting('en'));
       // Reads the saved session (no network), or on the web finishes a
       // Google sign-in the page was just sent back from.
@@ -135,6 +142,7 @@ class _BootAppState extends State<BootApp> {
       final cloud = CloudSync(ledger, settings);
       // In the background: the books are usable straight away, offline.
       if (widget.cloud) unawaited(cloud.start());
+      if (widget.cloud && CloudConfig.enabled) InstallReport(settings).start();
 
       setState(() {
         _progress = 1;

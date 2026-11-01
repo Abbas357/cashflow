@@ -84,7 +84,8 @@ the app points at it.
 2. **Run the migrations** in order, in the SQL editor (or `supabase db push`):
    `0001_init.sql`, `0002_google_sync.sql`, `0003_harden_functions.sql`,
    `0004_share_by_email_and_qr.sql`, `0005_push_devices.sql`,
-   `0006_delete_account.sql`. Deploy
+   `0006_delete_account.sql`, `0007_installs.sql`,
+   `0008_delete_install.sql`. Deploy
    `supabase/functions/notify-changes` (with JWT verification off: it
    checks the caller itself).
 3. **Google OAuth client.** In Google Cloud Console, APIs and Services,

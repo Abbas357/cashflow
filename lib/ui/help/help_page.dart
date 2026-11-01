@@ -8,7 +8,9 @@ import '../widgets/common.dart';
 const _faq = [
   (
     'Where is my data stored?',
-    'On this device, in a private database. Nothing is sent anywhere until you turn on cloud sync.',
+    'On this device, in a private database. Your entries are not sent anywhere until you sign in with Google. '
+        'To count users per country, Cash Flow sends a random ID, your country, currency and device type, '
+        'never your name or entries. You can see and delete this in Settings.',
   ),
   (
     'What does the balance at the bottom mean?',
@@ -61,6 +63,16 @@ class HelpPage extends StatelessWidget {
               title: const Text('How to use the app'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => context.push(Routes.howToUse),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SectionCard(
+            padding: EdgeInsets.zero,
+            child: ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Privacy policy'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push(Routes.privacyPolicy),
             ),
           ),
           const SizedBox(height: 16),

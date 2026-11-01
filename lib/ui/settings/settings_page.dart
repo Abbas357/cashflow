@@ -4,13 +4,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/currencies.dart';
 import '../../core/utils/formatters.dart';
 import '../../services/cloud_sync.dart';
+import '../../services/install_report.dart';
 import '../../services/notifier.dart';
 import '../../state/ledger_controller.dart';
 import '../../state/settings_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/currency_picker.dart';
 import 'profile_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -100,7 +101,7 @@ class SettingsPage extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: _CurrencyPicker(settings: s),
+                child: CurrencyPicker(settings: s),
               ),
               ListTile(
                 leading: const Icon(Icons.sell_outlined),
@@ -170,6 +171,18 @@ class SettingsPage extends StatelessWidget {
               ],
             ),
           _Group(
+            title: 'Usage statistics',
+            children: [
+              _UsageStats(settings: s),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy policy'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.push(Routes.privacyPolicy),
+              ),
+            ],
+          ),
+          _Group(
             title: 'Data',
             children: [
               ListTile(
@@ -201,6 +214,94 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+/// What this install sends to count users per country, and a way to delete it.
+class _UsageStats extends StatefulWidget {
+  final SettingsController settings;
+
+  const _UsageStats({required this.settings});
+
+  @override
+  State<_UsageStats> createState() => _UsageStatsState();
+}
+
+class _UsageStatsState extends State<_UsageStats> {
+  bool _deleting = false;
+
+  Future<void> _delete() async {
+    final ok = await confirm(
+      context,
+      title: 'Delete this information?',
+      message: 'It will be removed from the cloud, and this device will stop sending it. '
+          'Your accounts and entries are not affected.',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _deleting = true);
+    var deleted = false;
+    try {
+      await InstallReport.delete(widget.settings);
+      deleted = true;
+    } catch (_) {
+      // Told below.
+    }
+    if (!mounted) return;
+    setState(() => _deleting = false);
+    toast(context, deleted ? 'Deleted' : 'Could not delete. Check the connection and try again.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.settings;
+    if (s.installStatsOff) {
+      return const ListTile(
+        leading: Icon(Icons.bar_chart_rounded),
+        title: Text('Deleted'),
+        subtitle: Text('This device no longer sends information for counting users per country.'),
+      );
+    }
+    final t = Theme.of(context).textTheme;
+    Widget row(String label, String value) => Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 84, child: Text(label, style: t.bodySmall)),
+          Expanded(child: SelectableText(value, style: t.bodyMedium)),
+        ],
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.bar_chart_rounded),
+          title: const Text('Counting users per country'),
+          subtitle: Text(
+            '${s.installReported != null ? 'Sent' : 'Not sent yet'}: only this, never your name or entries.',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Column(
+            children: [
+              row('Random ID', s.installId),
+              row('Country', s.country ?? 'Not detected'),
+              row('Currency', s.currencyInfo.code),
+              row('Device', InstallReport.platform),
+            ],
+          ),
+        ),
+        ListTile(
+          enabled: !_deleting,
+          leading: const Icon(Icons.delete_outline_rounded, color: AppTheme.errorColor),
+          title: const Text('Delete this information', style: TextStyle(color: AppTheme.errorColor)),
+          subtitle: const Text('Also stops this device sending it'),
+          onTap: _delete,
+        ),
+      ],
+    );
+  }
+}
+
 class _Group extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -224,65 +325,6 @@ class _Group extends StatelessWidget {
             child: Column(children: children),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Every currency in a dropdown that filters as you type. Focusing it
-/// selects the current name, so typing replaces it and searches.
-class _CurrencyPicker extends StatefulWidget {
-  final SettingsController settings;
-
-  const _CurrencyPicker({required this.settings});
-
-  @override
-  State<_CurrencyPicker> createState() => _CurrencyPickerState();
-}
-
-class _CurrencyPickerState extends State<_CurrencyPicker> {
-  final _text = TextEditingController();
-
-  static String _label(Currency c) => '${c.name} (${c.code})';
-
-  @override
-  void dispose() {
-    _text.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final current = widget.settings.currencyInfo;
-    return Focus(
-      skipTraversal: true,
-      onFocusChange: (focused) {
-        if (focused) _text.selection = TextSelection(baseOffset: 0, extentOffset: _text.text.length);
-      },
-      child: DropdownMenu<String>(
-        key: ValueKey(current.code),
-        controller: _text,
-        initialSelection: current.code,
-        expandedInsets: EdgeInsets.zero,
-        enableFilter: true,
-        requestFocusOnTap: true,
-        menuHeight: 360,
-        leadingIcon: SizedBox(
-          width: 48,
-          child: Center(child: Text(current.symbol, style: const TextStyle(fontWeight: FontWeight.w600))),
-        ),
-        dropdownMenuEntries: [
-          for (final c in currencies)
-            DropdownMenuEntry(
-              value: c.code,
-              label: _label(c),
-              trailingIcon: Text(c.symbol),
-            ),
-        ],
-        onSelected: (code) {
-          if (code != null) widget.settings.setCurrencyCode(code);
-          FocusScope.of(context).unfocus();
-        },
       ),
     );
   }

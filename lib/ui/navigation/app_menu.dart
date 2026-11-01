@@ -193,7 +193,7 @@ class MenuList extends StatelessWidget {
               icon: item.icon,
               label: item.label,
               // Invitations waiting for you show on Sharing.
-              badge: item.path == Routes.sharing && waiting > 0 ? '$waiting' : item.badge,
+              badge: item.path == Routes.sharing && waiting > 0 ? '$waiting' : null,
               collapsed: collapsed,
               selected: item.isCurrent(location),
               onTap: () {

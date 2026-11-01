@@ -99,7 +99,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     final (settings, ledger) = (await tester.runAsync(() async {
-      SharedPreferences.setMockInitialValues({'theme_mode': 'light'});
+      SharedPreferences.setMockInitialValues({'theme_mode': 'light', 'onboarded': true});
       final s = SettingsController(await SharedPreferences.getInstance());
       final db = await AppDatabase.openWith(databaseFactoryFfi, inMemoryDatabasePath);
       final l = LedgerController(LedgerRepository(db, Actor(s.userId, s.displayName)), s);

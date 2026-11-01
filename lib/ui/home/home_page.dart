@@ -143,32 +143,36 @@ class _LedgerState extends State<_Ledger> {
             )
           : const AccountTitle(),
       actions: [
-        if (_searching)
-          IconButton(
-            tooltip: 'Close search',
-            icon: const Icon(Icons.close_rounded),
-            onPressed: () => _closeSearch(ledger),
-          )
-        else ...[
-          if (context.watch<CloudSync?>()?.signedIn ?? false) const NotificationBell(),
-          IconButton(
-            tooltip: dark ? 'Light mode' : 'Dark mode',
-            icon: Icon(dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: () => settings.toggleDark(context),
-          ),
-          if (!context.isPhone)
-            IconButton(
-              tooltip: 'Account report',
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              onPressed: () => ReportActions.accountReport(context),
-            ),
-          IconButton(
-            tooltip: 'Search',
-            icon: const Icon(Icons.search_rounded),
-            onPressed: () => setState(() => _searching = true),
-          ),
-        ],
-        _MoreMenu(onPickRange: () => _pickRange(ledger)),
+        _BarActions(
+          children: [
+            if (_searching)
+              IconButton(
+                tooltip: 'Close search',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => _closeSearch(ledger),
+              )
+            else ...[
+              if (context.watch<CloudSync?>()?.signedIn ?? false) const NotificationBell(),
+              IconButton(
+                tooltip: dark ? 'Light mode' : 'Dark mode',
+                icon: Icon(dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+                onPressed: () => settings.toggleDark(context),
+              ),
+              if (!context.isPhone)
+                IconButton(
+                  tooltip: 'Account report',
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  onPressed: () => ReportActions.accountReport(context),
+                ),
+              IconButton(
+                tooltip: 'Search',
+                icon: const Icon(Icons.search_rounded),
+                onPressed: () => setState(() => _searching = true),
+              ),
+            ],
+            _MoreMenu(onPickRange: () => _pickRange(ledger)),
+          ],
+        ),
         const SizedBox(width: 4),
       ],
     );
@@ -204,6 +208,30 @@ class _LedgerState extends State<_Ledger> {
           body: body,
         ),
       ),
+    );
+  }
+}
+
+/// Makes the top bar's right-hand icon buttons a little smaller and closer
+/// together, keeping the colours the app bar gives them.
+class _BarActions extends StatelessWidget {
+  static const iconSize = 22.0;
+
+  final List<Widget> children;
+
+  const _BarActions({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = IconButtonTheme.of(context).style ?? const ButtonStyle();
+    return IconButtonTheme(
+      data: IconButtonThemeData(
+        style: base.copyWith(
+          iconSize: const WidgetStatePropertyAll(iconSize),
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
 }
@@ -248,6 +276,7 @@ class _MoreMenu extends StatelessWidget {
 
     return PopupMenuButton<_MenuAction>(
       tooltip: 'More',
+      iconSize: _BarActions.iconSize,
       icon: const Icon(Icons.more_vert_rounded),
       position: PopupMenuPosition.under,
       onSelected: (a) {

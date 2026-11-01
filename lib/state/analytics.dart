@@ -25,37 +25,9 @@ class Bucket {
   }
 }
 
-enum Grouping { day, month, year }
-
-/// Pure number crunching for summaries, insights and reports.
+/// Pure number crunching for insights and reports.
 class Analytics {
   Analytics._();
-
-  static DateTime keyOf(DateTime d, Grouping g) => switch (g) {
-    Grouping.day => DateTime(d.year, d.month, d.day),
-    Grouping.month => DateTime(d.year, d.month),
-    Grouping.year => DateTime(d.year),
-  };
-
-  /// Groups [entries] (any order) by day, month or year, newest first, with
-  /// the closing balance of each group.
-  static List<Bucket> group(
-    List<Entry> entries,
-    Grouping g,
-    String Function(DateTime) label,
-  ) {
-    final sorted = [...entries]..sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
-    final map = <DateTime, Bucket>{};
-    var running = 0.0;
-    for (final e in sorted) {
-      final k = keyOf(e.occurredAt, g);
-      final b = map[k] ??= Bucket(k, label(k));
-      b.add(e);
-      running += e.signed;
-      b.closing = running;
-    }
-    return map.values.toList().reversed.toList();
-  }
 
   /// The last [months] calendar months ending with the current one, oldest
   /// first, including empty months so a chart has no gaps.

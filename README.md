@@ -63,9 +63,9 @@ Run these from this folder, in any terminal.
 * **Accounts**: switch, search, add, rename, reorder and delete.
 * **Transfers** between accounts as a linked pair.
 * **Reports**: Insights (monthly in/out chart, balance trend, where the money
-  went, spending by weekday, largest expenses), Summary by day, month or
-  year, Account summary, Transactions across all accounts, PDF and CSV
-  export, printing with your name, address and the app icon in the header.
+  went, spending by weekday, largest expenses), Account summary, Transactions
+  across all accounts, PDF and CSV export, printing with your name, address
+  and the app icon in the header.
 * **Sharing** (signed in): invite someone by their Gmail address or show a
   QR code, as Can edit or View only. They accept in the app and see every
   entry from then on. The Sharing page shows who accepted and how many
@@ -214,3 +214,44 @@ Supabase project is set in `lib/core/config/cloud_config.dart`. See
 [docs/SUPABASE_SYNC.md](docs/SUPABASE_SYNC.md) for how it works and the
 setup steps (Supabase project, migrations, Google OAuth client, redirect
 URLs).
+
+## Users per country
+
+The first time the app opens, it works out the country on the device and
+uses it to preselect the currency:
+
+- Android: the SIM's country, then the mobile network's, then the time zone.
+- Web: the browser's time zone.
+- Anywhere, as a last resort: the region in the language setting.
+
+Once the welcome popup is finished, each install reports to the `installs`
+table in Supabase (`supabase/migrations/0007_installs.sql`), signed in or not.
+Count people per country in the Supabase SQL editor:
+
+```sql
+select country, count(*) as installs
+  from public.installs
+ group by country
+ order by installs desc;
+```
+
+This counts installs, not people: reinstalling, or using another phone or
+browser, adds a row. Settings, Usage statistics shows what the install sends
+and can delete it (`supabase/migrations/0008_delete_install.sql`), after which
+that install reports nothing more.
+
+## Privacy policy
+
+The text lives in `lib/core/legal/privacy_policy.dart`. It appears in the app
+(Help and about, Settings and the welcome popup, at `/privacy-policy`) and on
+the public page https://abbas357.github.io/cashflow/privacy/, which is
+`web/privacy/index.html`. After changing the text, run
+`dart run tool/make_privacy_html.dart`; a test fails if the two differ.
+
+For Google Play, in Play Console, App content:
+
+- **Privacy policy:** https://abbas357.github.io/cashflow/privacy/
+- **Account deletion:** https://abbas357.github.io/cashflow/delete-account/
+- **Data safety:** declare what the policy lists, including Approximate location
+  and Device or other IDs for usage statistics (purpose: Analytics), and answer
+  Yes to data deletion requests.

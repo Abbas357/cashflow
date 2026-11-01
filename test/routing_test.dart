@@ -40,6 +40,7 @@ Future<LedgerController> pumpApp(
   final (settings, ledger) = (await tester.runAsync(() async {
     if (prefs != null) SharedPreferences.setMockInitialValues(prefs);
     final s = SettingsController(await SharedPreferences.getInstance());
+    await s.setOnboarded();
     final db = await AppDatabase.openWith(databaseFactoryFfi, inMemoryDatabasePath);
     final l = LedgerController(LedgerRepository(db, Actor(s.userId, s.displayName)), s);
     await l.load();

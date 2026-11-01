@@ -37,7 +37,6 @@ const _topics = [
   ]),
   _Topic(Icons.insights_outlined, 'Reports', [
     'Insights shows monthly charts, your balance trend, where the money went and the biggest expenses.',
-    'Summary totals each day, month or year with the closing balance.',
     'Account summary compares all accounts at a glance.',
     'Reports: all accounts builds a PDF or CSV for any dates, and Print sends the current view to a printer.',
     'Set your name and address in Settings so they appear on printed reports.',

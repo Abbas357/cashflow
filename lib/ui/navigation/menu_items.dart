@@ -7,7 +7,6 @@ class MenuItem {
   final IconData icon;
   final String label;
   final String path;
-  final String? badge;
 
   /// Extra words the menu search matches, beyond the label.
   final String keywords;
@@ -19,7 +18,6 @@ class MenuItem {
     this.icon,
     this.label,
     this.path, {
-    this.badge,
     this.keywords = '',
     this.signedInOnly = false,
   });
@@ -40,8 +38,7 @@ class MenuSection {
 /// Home is the logo and name at the top.
 const menuSections = <MenuSection>[
   MenuSection('Reports', [
-    MenuItem(Icons.insights_outlined, 'Insights', Routes.insights, badge: 'New', keywords: 'charts trends spending'),
-    MenuItem(Icons.calendar_view_month_outlined, 'Summary', Routes.summary, keywords: 'daily monthly yearly totals'),
+    MenuItem(Icons.insights_outlined, 'Insights', Routes.insights, keywords: 'charts trends spending'),
     MenuItem(Icons.account_balance_outlined, 'Account summary', Routes.accountSummary, keywords: 'balances'),
     MenuItem(Icons.receipt_long_outlined, 'Transactions: all accounts', Routes.transactions, keywords: 'entries list'),
     MenuItem(Icons.picture_as_pdf_outlined, 'Reports: all accounts', Routes.reports, keywords: 'pdf csv export print'),

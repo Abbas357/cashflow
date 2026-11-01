@@ -16,8 +16,8 @@ import '../../ui/home/home_page.dart';
 import '../../ui/navigation/app_shell.dart';
 import '../../ui/reports/account_summary_page.dart';
 import '../../ui/reports/all_transactions_page.dart';
+import '../../ui/legal/privacy_policy_page.dart';
 import '../../ui/reports/insights_page.dart';
-import '../../ui/reports/period_summary_page.dart';
 import '../../ui/reports/reports_page.dart';
 import '../../ui/settings/delete_account_page.dart';
 import '../../ui/settings/settings_page.dart';
@@ -44,7 +44,6 @@ class Routes {
   static const cashIn = 'cash-in';
   static const cashOut = 'cash-out';
   static const insights = '/insights';
-  static const summary = '/summary';
   static const accountSummary = '/account-summary';
   static const transactions = '/transactions';
   static const reports = '/reports';
@@ -59,6 +58,8 @@ class Routes {
   static const deleteAccount = '/settings/delete-account';
   static const help = '/help';
   static const howToUse = '/how-to-use';
+  // Not /privacy: that is the public HTML page (web/privacy/index.html).
+  static const privacyPolicy = '/privacy-policy';
   static const sharing = '/sharing';
   static const notifications = '/notifications';
 
@@ -206,7 +207,6 @@ GoRouter buildRouter(
             pageBuilder: (_, state) => ledgerPage(state),
             routes: [
               page(Routes.insights, () => const InsightsPage()),
-              page(Routes.summary, () => const PeriodSummaryPage()),
               page(Routes.accountSummary, () => const AccountSummaryPage()),
               page(Routes.transactions, () => const AllTransactionsPage()),
               page(Routes.reports, () => const ReportsPage()),
@@ -218,6 +218,7 @@ GoRouter buildRouter(
               page(Routes.deleteAccount, () => const DeleteAccountPage()),
               page(Routes.help, () => const HelpPage()),
               page(Routes.howToUse, () => const HowToUsePage()),
+              page(Routes.privacyPolicy, () => const PrivacyPolicyPage()),
               page(Routes.sharing, () => const SharingHubPage()),
               page(Routes.notifications, () => const NotificationsPage()),
               GoRoute(

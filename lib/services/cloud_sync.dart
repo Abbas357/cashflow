@@ -14,6 +14,7 @@ import '../data/models/models.dart';
 import '../state/ledger_controller.dart';
 import '../state/settings_controller.dart';
 import 'auth_popup_io.dart' if (dart.library.js_interop) 'auth_popup_web.dart';
+import 'install_report.dart';
 import 'notifier.dart';
 import 'push.dart';
 
@@ -298,6 +299,12 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     } catch (_) {
       _deleting = false;
       rethrow;
+    }
+    // Before the wipe, which takes the only id that can find this record.
+    try {
+      await InstallReport.delete(settings);
+    } catch (_) {
+      // The account is already gone, and this record has no link to it.
     }
     _news.clear();
     rejected = 0;

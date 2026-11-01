@@ -43,8 +43,42 @@ class SettingsController extends ChangeNotifier {
     if (symbol != null) {
       return currencies.where((c) => c.symbol == symbol).firstOrNull ?? Currency.byCode('PKR')!;
     }
-    return Currency.forCountry(PlatformDispatcher.instance.locale.countryCode) ?? Currency.byCode('USD')!;
+    return Currency.forCountry(country) ??
+        Currency.forCountry(PlatformDispatcher.instance.locale.countryCode) ??
+        Currency.byCode('USD')!;
   }
+
+  static const _kCountry = 'country_code';
+
+  /// The country found when the app first opened here (see DeviceRegion), as
+  /// an ISO code. Null if it could not be worked out.
+  String? get country => _prefs.getString(_kCountry);
+  Future<void> setCountry(String code) => _set(_prefs.setString(_kCountry, code));
+
+  static const _kInstallId = 'install_id';
+  static const _kInstallReported = 'install_reported';
+
+  /// A random id for this install, for counting people per country. Separate
+  /// from [userId], so it cannot be tied to their account or their books.
+  String get installId {
+    var id = _prefs.getString(_kInstallId);
+    if (id == null) {
+      id = const Uuid().v4();
+      _prefs.setString(_kInstallId, id);
+    }
+    return id;
+  }
+
+  /// What the cloud last heard from this install (see InstallReport).
+  String? get installReported => _prefs.getString(_kInstallReported);
+  Future<void> setInstallReported(String what) => _prefs.setString(_kInstallReported, what);
+  Future<void> clearInstallReported() => _set(_prefs.remove(_kInstallReported));
+
+  static const _kInstallStatsOff = 'install_stats_off';
+
+  /// They deleted what this install reported, so it reports nothing more.
+  bool get installStatsOff => _prefs.getBool(_kInstallStatsOff) ?? false;
+  Future<void> setInstallStatsOff(bool v) => _set(_prefs.setBool(_kInstallStatsOff, v));
 
   /// The symbol shown beside amounts: the currency's own, unless changed.
   String get currency => _prefs.getString(_kCurrency) ?? currencyInfo.symbol;
@@ -168,6 +202,13 @@ class SettingsController extends ChangeNotifier {
     await _prefs.setString(_kGrouping, c.grouping.name);
     await _set(_prefs.setString(_kCurrency, c.symbol));
   }
+
+  /// Keeps the currency showing now, so one guessed from the device's region
+  /// stays put. A currency or symbol already set is left as it is.
+  Future<void> keepCurrency() async {
+    if (_prefs.getString(_kCurrency) == null) await setCurrencyCode(currencyInfo.code);
+  }
+
   Future<void> setGrouping(NumberGrouping g) =>
       _set(_prefs.setString(_kGrouping, g.name));
   Future<void> setDecimals(int d) => _set(_prefs.setInt(_kDecimals, d));

@@ -46,6 +46,7 @@ Future<(SettingsController, LedgerController)> _seed({bool dark = false}) async 
   SharedPreferences.setMockInitialValues({
     'theme_mode': dark ? 'dark' : 'light',
     'profile_name': 'Abbas Khan',
+    'onboarded': true,
   });
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsController(prefs);

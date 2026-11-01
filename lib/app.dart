@@ -8,6 +8,7 @@ import 'services/cloud_sync.dart';
 import 'services/update_check.dart';
 import 'state/ledger_controller.dart';
 import 'state/settings_controller.dart';
+import 'ui/welcome/welcome_dialog.dart';
 
 class CashFlowApp extends StatefulWidget {
   final String initialLocation;
@@ -24,6 +25,7 @@ class _CashFlowAppState extends State<CashFlowApp> {
   late final CloudSync? _cloud = context.read<CloudSync?>();
   late final GoRouter _router = buildRouter(_ledger, initialLocation: widget.initialLocation);
   bool _mirrorQueued = false;
+  bool _welcomeChecked = false;
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   late final _updates = UpdateCheck(_offerReload);
 
@@ -57,7 +59,26 @@ class _CashFlowAppState extends State<CashFlowApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _mirrorQueued = false;
       _mirror();
+      _welcomeOnFirstOpen();
     });
+  }
+
+  /// The welcome popup, once ever, on the ledger of someone new. Signed in or
+  /// already named means they have been here before this popup existed. A
+  /// link to another page (an invitation, say) is left alone.
+  void _welcomeOnFirstOpen() {
+    if (_welcomeChecked || !mounted) return;
+    final path = _router.routerDelegate.currentConfiguration.uri.path;
+    final context = _router.routerDelegate.navigatorKey.currentContext;
+    // The router has not reported its first address yet.
+    if (path.isEmpty || context == null) return;
+    _welcomeChecked = true;
+    if (_settings.onboarded) return;
+    if ((_cloud?.signedIn ?? false) || _settings.name.trim().isNotEmpty) {
+      _settings.setOnboarded();
+      return;
+    }
+    if (Routes.isLedger(path)) showWelcome(context);
   }
 
   /// Keeps the address in step with the ledger: `/account/<uuid>` for the

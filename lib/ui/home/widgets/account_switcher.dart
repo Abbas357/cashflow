@@ -16,32 +16,36 @@ class AccountTitle extends StatelessWidget {
     final ledger = context.watch<LedgerController>();
     final acc = ledger.current;
     final t = Theme.of(context).textTheme;
-    return InkWell(
+    return Material(
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(10),
-      onTap: () => showAccountSwitcher(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    acc?.name ?? 'Cash Flow',
-                    style: t.titleLarge,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (acc != null && !acc.canEdit)
-                    Text('View only', style: t.labelSmall),
-                ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showAccountSwitcher(context),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      acc?.name ?? 'Cash Flow',
+                      style: t.titleLarge,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (acc != null && !acc.canEdit)
+                      Text('View only', style: t.labelSmall),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 2),
-            const Icon(Icons.expand_more_rounded),
-          ],
+              const SizedBox(width: 2),
+              const Icon(Icons.expand_more_rounded),
+            ],
+          ),
         ),
       ),
     );
@@ -63,8 +67,10 @@ class _AccountSwitcher extends StatefulWidget {
 }
 
 class _AccountSwitcherState extends State<_AccountSwitcher> {
+  /// Sets a row's action buttons closer together while keeping them easy to hit.
+  static const _actionDensity = VisualDensity(horizontal: -4, vertical: -2);
+
   String _query = '';
-  bool _editing = false;
   Map<String, (double, double, int)> _totals = {};
 
   @override
@@ -125,17 +131,12 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
               child: Row(
                 children: [
                   Icon(Icons.folder_open_rounded, color: scheme.primary),
                   const SizedBox(width: 10),
                   Expanded(child: Text('Accounts', style: t.titleLarge)),
-                  TextButton.icon(
-                    onPressed: () => setState(() => _editing = !_editing),
-                    icon: Icon(_editing ? Icons.check_rounded : Icons.edit_outlined, size: 18),
-                    label: Text(_editing ? 'Done' : 'Edit'),
-                  ),
                 ],
               ),
             ),
@@ -166,8 +167,11 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
                         final tot = _totals[a.id];
                         final selected = a.id == ledger.current?.id;
                         final balance = tot == null ? 0.0 : tot.$1 - tot.$2;
+                        final count = tot?.$3 ?? 0;
                         return ListTile(
                           selected: selected,
+                          contentPadding: const EdgeInsets.fromLTRB(12, 2, 6, 2),
+                          horizontalTitleGap: 12,
                           selectedTileColor: scheme.primary.withValues(alpha: 0.08),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -184,41 +188,53 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
                             ),
                           ),
                           title: Text(a.name, overflow: TextOverflow.ellipsis),
-                          subtitle: Text(
-                            '${tot?.$3 ?? 0} entries${a.isShared ? '  ·  Shared' : ''}',
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // A very large balance shrinks to fit rather than being cut off.
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: BalanceText(balance, style: t.titleSmall),
+                              ),
+                              Text(
+                                '$count ${count == 1 ? 'entry' : 'entries'}'
+                                '${a.isShared ? '  ·  Shared' : ''}',
+                              ),
+                            ],
                           ),
-                          trailing: _editing
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Share',
-                                      icon: const Icon(Icons.person_add_alt_outlined),
-                                      onPressed: () => openSharing(context, a),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Rename',
-                                      icon: const Icon(Icons.edit_outlined),
-                                      onPressed: () => _rename(a),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Delete',
-                                      icon: const Icon(Icons.delete_outline_rounded),
-                                      color: AppTheme.errorColor,
-                                      onPressed: () => _delete(a),
-                                    ),
-                                  ],
-                                )
-                              : BalanceText(
-                                  balance,
-                                  style: t.titleSmall,
-                                ),
-                          onTap: _editing
-                              ? () => _rename(a)
-                              : () async {
-                                  await ledger.selectAccount(a);
-                                  if (context.mounted) Navigator.pop(context);
-                                },
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Share',
+                                visualDensity: _actionDensity,
+                                iconSize: 22,
+                                icon: const Icon(Icons.person_add_alt_outlined),
+                                onPressed: () => openSharing(context, a),
+                              ),
+                              IconButton(
+                                tooltip: 'Rename',
+                                visualDensity: _actionDensity,
+                                iconSize: 22,
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => _rename(a),
+                              ),
+                              IconButton(
+                                tooltip: 'Delete',
+                                visualDensity: _actionDensity,
+                                iconSize: 22,
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                color: AppTheme.errorColor,
+                                onPressed: () => _delete(a),
+                              ),
+                            ],
+                          ),
+                          onTap: () async {
+                            await ledger.selectAccount(a);
+                            if (context.mounted) Navigator.pop(context);
+                          },
                         );
                       },
                     ),
